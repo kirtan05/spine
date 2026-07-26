@@ -94,6 +94,20 @@ NULLs (`worker/src/documents.ts`); the pipeline's catalogue sync overwrites
 (`laptop/src/spinecore/d1.py`). Otherwise a 25-second metadata push would clobber a
 curated ComicInfo title on every sync.
 
+**The metadata push does not exist in shipping KOReader.** Verified against the
+v2026.03 plugin extracted from the APK: no `getMetadata`, no `send_metadata`, and
+`api.json`'s `update_progress` payload is only
+`document, progress, percentage, device, device_id`. It is a master-branch feature.
+So the PRD's "primary title source" is currently the *pipeline*, and `documents`
+stays empty for anything not published through `shelf`. The Worker's handling is
+already correct and forward-compatible — leave it.
+
+**`auto_sync` defaults to false and is the setting that matters.** With it off,
+`registerEvents()` sets `onCloseDocument`/`onSuspend` to `nil` and `onReaderReady`
+skips the pull, so nothing syncs and nothing errors. If a device "isn't syncing"
+and the server has *zero* rows, check that before anything else — a device that
+pushes and is rejected leaves traces, one that never pushes leaves none.
+
 **`kostats` snapshots the WAL sidecars** before reading `statistics.sqlite3`.
 Opening a synced copy read-only without its `-wal` returns data as of the last
 checkpoint — a successful-looking import quietly missing the newest reading.

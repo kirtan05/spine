@@ -49,14 +49,37 @@ that happened to share a name.
 Whatever you pick, it must be **the same on every device** or they will not
 recognise each other's books at all.
 
-## 4. Send document metadata → on
+## 4. Automatically keep documents in sync → **on**
 
-**Progress sync → Send document metadata**
+**Progress sync → Automatically keep documents in sync**
 
-This is the one on that screen that genuinely needs changing: `send_metadata`
-defaults to **false**. It is how the server learns titles and authors, and it is
-the primary title source for the `/reading` page. Without it every book renders as
-"Unknown" until the ingest pipeline catches up.
+`auto_sync` defaults to **false**, and with it off the plugin attaches no event
+handlers at all — `registerEvents()` sets `onCloseDocument` and `onSuspend` to
+`nil`, and `onReaderReady` skips the pull. Closing a book does nothing, opening
+one does nothing, and the server stays empty with no error anywhere. This is the
+setting that actually makes sync happen.
+
+Watch for one thing on e-ink devices: at startup the plugin force-disables
+auto-sync if `wifi_enable_action` is anything other than `turn_on`, logging
+"Automatic sync has been disabled because wifi_enable_action is *not* turn_on".
+That guard does not fire on Android, but if auto-sync keeps turning itself off,
+set **Network → action when Wi-Fi is off → turn on automatically**.
+
+## 5. Send document metadata — not available yet
+
+**There is no such setting in KOReader v2026.03.** The metadata push exists on
+master but has not shipped: the word "metadata" appears nowhere in the release's
+`kosync.koplugin`, and its `api.json` lists only
+`document, progress, percentage, device, device_id`.
+
+**So on current KOReader, the ingest pipeline is the _only_ source of titles**,
+not the enrichment path the PRD assumed. Any book that has not gone through
+`shelf` renders as "Unknown" on the reading page — which remains the correct
+signal, it is just now the normal state for anything sideloaded by hand.
+
+The server already accepts and stores the field, so nothing needs changing when a
+release does ship it. Setting `send_metadata = true` ahead of time is harmless and
+means it turns on by itself at upgrade.
 
 ---
 
