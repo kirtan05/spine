@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading</title>
+<meta name="description" content="What I'm reading, what I've finished, and how much of the record is measured rather than estimated.">
+<style>
+/*
+  Two typefaces, two jobs. Book titles are set in a serif because that is the
+  typography of books. Every figure, label, author and date is set in mono with
+  tabular figures because that is the typography of records, and this page is a
+  record before it is anything else.
+
+  Provenance is carried by texture, not hue: measured time is solid ink, estimated
+  time is the same ink hatched. An estimated number is not a different category of
+  thing — it is the same thing, less certain — and a second colour would say
+  otherwise.
+*/
+:root {
+  --paper:    #f4f5f2;
+  --ink:      #17181c;
+  --muted:    #6b6d73;
+  --rule:     #d8dad4;
+  --accent:   #2e6e4e;
+  --hatch:    rgba(23, 24, 28, 0.34);
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", Consolas, monospace;
+
+  --gap: clamp(2.5rem, 6vw, 4rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:  #131417;
+    --ink:    #e8e9e4;
+    --muted:  #8e9096;
+    --rule:   #2b2d33;
+    --accent: #5fb98c;
+    --hatch:  rgba(232, 233, 228, 0.30);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: clamp(2rem, 6vw, 5rem) clamp(1.25rem, 5vw, 3rem) 6rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+.page { max-width: 46rem; margin: 0 auto; }
+
+/* ---- masthead ---------------------------------------------------------- */
+
+.masthead { margin-bottom: var(--gap); }
+
+.masthead h1 {
+  font-family: var(--serif);
+  font-size: clamp(2.25rem, 7vw, 3.25rem);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  margin: 0 0 0.4rem;
+}
+
+.standfirst {
+  color: var(--muted);
+  max-width: 34rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/* ---- sections ---------------------------------------------------------- */
+
+.section { margin-bottom: var(--gap); }
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--ink);
+}
+
+.section-head h2 {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.section-note {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- ledger rows ------------------------------------------------------- */
+
+.rows { list-style: none; margin: 0; padding: 0; }
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 1.5rem;
+  align-items: baseline;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.row-title {
+  font-family: var(--serif);
+  font-size: 1.125rem;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.row-meta {
+  grid-column: 1;
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+.row-figure {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.row-aside {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 0.6875rem;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* A book seen edge-on: the spine, filled to where the reading has got to. */
+.spine {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  height: 3px;
+  margin-top: 0.6rem;
+  background: var(--rule);
+  position: relative;
+  overflow: hidden;
+}
+
+.spine::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fill, 0%);
+  background: var(--accent);
+  transform-origin: left;
+  animation: draw 900ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* ---- the record strip: the one thing this page is for ------------------ */
+
+.record { margin-top: 1.5rem; }
+
+.strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 88px;
+  padding-bottom: 1px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.strip-empty {
+  align-items: center;
+  justify-content: flex-start;
+  height: auto;
+  min-height: 3.5rem;
+  padding: 1rem 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  border-bottom-color: var(--rule);
+}
+
+.day {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.day-measured { background: var(--ink); }
+
+/* Estimated time is the same ink, hatched. You can see how much of the record
+   somebody actually timed and how much a model produced. */
+.day-estimated {
+  background-image: repeating-linear-gradient(
+    45deg, var(--hatch) 0 1.5px, transparent 1.5px 4px
+  );
+  border-top: 1px solid var(--hatch);
+}
+
+.strip-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- totals ------------------------------------------------------------ */
+
+.totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1.5rem 2rem;
+  margin-top: 2rem;
+}
+
+.total dt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.total dd {
+  margin: 0.35rem 0 0;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.total-sub {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* The same two textures as the strip, so the legend needs no explaining. */
+.mark {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border: 1px solid var(--ink);
+}
+
+.mark-measured { background: var(--ink); }
+
+.mark-estimated {
+  background-image: repeating-linear-gradient(
+    45deg, var(--hatch) 0 1.5px, transparent 1.5px 4px
+  );
+}
+
+/* ---- states ------------------------------------------------------------ */
+
+.empty {
+  padding: 1.25rem 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.colophon {
+  margin-top: var(--gap);
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.6875rem;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.colophon a { color: inherit; text-underline-offset: 3px; }
+.colophon a:focus-visible,
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+[hidden] { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .spine::after { animation: none; }
+}
+
+@media (max-width: 30rem) {
+  /* The byline gets its own full-width line rather than sharing one with the
+     date, which crowds a long series name into two cramped wrapped lines. */
+  .row-meta { grid-column: 1 / -1; grid-row: 3; }
+  .spine { grid-row: 4; }
+  .strip { height: 64px; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <header class="masthead">
+    <h1>Reading</h1>
+    <p class="standfirst">
+      Positions sync from KOReader on three devices. Measured time comes from each
+      device&rsquo;s own page timings; estimated time comes from a model, and is
+      drawn hatched wherever it appears so the two are never added together.
+    </p>
+  </header>
+
+  <section class="section" id="now-section">
+    <div class="section-head">
+      <h2>Now</h2>
+      <span class="section-note" id="now-count"></span>
+    </div>
+    <ul class="rows" id="now"></ul>
+  </section>
+
+  <section class="section" id="finished-section">
+    <div class="section-head">
+      <h2>Finished</h2>
+      <span class="section-note" id="finished-window"></span>
+    </div>
+    <ul class="rows" id="finished"></ul>
+  </section>
+
+  <section class="section" id="record-section">
+    <div class="section-head">
+      <h2>The record</h2>
+      <span class="section-note" id="record-window"></span>
+    </div>
+
+    <div class="record">
+      <div class="strip" id="strip" role="img" aria-label="Daily reading over the recent window"></div>
+      <div class="strip-axis">
+        <span id="strip-start"></span>
+        <span id="strip-end">Today</span>
+      </div>
+    </div>
+
+    <dl class="totals" id="totals"></dl>
+  </section>
+
+  <footer class="colophon" id="colophon"></footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var ENDPOINT = "/api/reading";
+  var IST_OFFSET = 19800; // Asia/Kolkata, UTC+5:30 year-round. No DST to handle.
+
+  function istDay(unixSeconds) {
+    return new Date((unixSeconds + IST_OFFSET) * 1000).toISOString().slice(0, 10);
+  }
+
+  function dayNumber(day) {
+    return Math.floor(Date.parse(day + "T00:00:00Z") / 86400000);
+  }
+
+  function duration(seconds) {
+    if (!seconds) return "—";
+    var hours = Math.floor(seconds / 3600);
+    var minutes = Math.round((seconds % 3600) / 60);
+    if (!hours) return minutes + "m";
+    return hours + "h" + (minutes ? " " + minutes + "m" : "");
+  }
+
+  function shortDate(day) {
+    if (!day) return "";
+    var parts = day.split("-");
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return parseInt(parts[2], 10) + " " + months[parseInt(parts[1], 10) - 1];
+  }
+
+  function element(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  /** "Steven Erikson · Malazan 1" — omitting whichever parts are unknown. */
+  function byline(book) {
+    var bits = [];
+    if (book.authors) bits.push(book.authors.split("\n")[0]);
+    if (book.series) {
+      bits.push(book.series_index != null ? book.series + " " + book.series_index : book.series);
+    }
+    return bits.join(" · ");
+  }
+
+  function bookRow(book, figure, aside, percent) {
+    var row = element("li", "row");
+    row.appendChild(element("h3", "row-title", book.title || "Unknown"));
+
+    var meta = byline(book);
+    if (meta) row.appendChild(element("p", "row-meta", meta));
+
+    if (figure) row.appendChild(element("span", "row-figure", figure));
+    if (aside) row.appendChild(element("span", "row-aside", aside));
+
+    if (percent != null) {
+      var spine = element("div", "spine");
+      spine.style.setProperty("--fill", Math.max(0, Math.min(100, percent)) + "%");
+      row.appendChild(spine);
+    }
+    return row;
+  }
+
+  function fillList(node, books, build, emptyMessage) {
+    node.textContent = "";
+    if (!books || !books.length) {
+      var empty = element("li", "empty", emptyMessage);
+      node.appendChild(empty);
+      return;
+    }
+    books.forEach(function (book) { node.appendChild(build(book)); });
+  }
+
+  /**
+   * One column per day across the window. The measured portion is solid and sits
+   * at the bottom; the estimated portion is hatched and sits on top of it.
+   */
+  function renderStrip(data) {
+    var strip = document.getElementById("strip");
+    var windowDays = data.window_days || 90;
+    var today = istDay(data.generated_at);
+    var lastDay = dayNumber(today);
+
+    var byDay = {};
+    ["measured", "estimated"].forEach(function (kind) {
+      var days = (data.stats && data.stats[kind] && data.stats[kind].days) || [];
+      days.forEach(function (entry) {
+        if (!byDay[entry.day]) byDay[entry.day] = { measured: 0, estimated: 0 };
+        byDay[entry.day][kind] += entry.seconds || 0;
+      });
+    });
+
+    var peak = 0;
+    Object.keys(byDay).forEach(function (day) {
+      peak = Math.max(peak, byDay[day].measured + byDay[day].estimated);
+    });
+
+    strip.textContent = "";
+    var firstDay = "";
+
+    if (peak === 0) {
+      strip.classList.add("strip-empty");
+      strip.textContent = "No reading recorded yet. Sessions arrive when a device's statistics are imported.";
+      strip.setAttribute("aria-label", "No reading recorded yet");
+      document.querySelector(".strip-axis").hidden = true;
+      return;
+    }
+    strip.classList.remove("strip-empty");
+    document.querySelector(".strip-axis").hidden = false;
+
+    for (var offset = windowDays - 1; offset >= 0; offset--) {
+      var day = new Date((lastDay - offset) * 86400000).toISOString().slice(0, 10);
+      if (!firstDay) firstDay = day;
+
+      var column = element("div", "day");
+      column.title = shortDate(day);
+      var totals = byDay[day];
+
+      if (totals && peak > 0) {
+        // A floor of 3% keeps a genuinely short session visible rather than
+        // rounding it away into an apparently empty day.
+        var estimated = totals.estimated / peak;
+        var measured = totals.measured / peak;
+        if (estimated > 0) {
+          var e = element("div", "day-estimated");
+          e.style.height = Math.max(3, estimated * 100) + "%";
+          column.appendChild(e);
+        }
+        if (measured > 0) {
+          var m = element("div", "day-measured");
+          m.style.height = Math.max(3, measured * 100) + "%";
+          column.appendChild(m);
+        }
+      }
+      strip.appendChild(column);
+    }
+
+    document.getElementById("strip-start").textContent = shortDate(firstDay);
+    strip.setAttribute(
+      "aria-label",
+      "Daily reading from " + shortDate(firstDay) + " to today. " +
+      duration(total(data, "measured")) + " measured, " +
+      duration(total(data, "estimated")) + " estimated."
+    );
+  }
+
+  function total(data, kind) {
+    return (data.stats && data.stats[kind] && data.stats[kind].total_seconds) || 0;
+  }
+
+  function renderTotals(data) {
+    var node = document.getElementById("totals");
+    node.textContent = "";
+
+    [
+      { kind: "measured", label: "Measured", note: "timed on-device" },
+      { kind: "estimated", label: "Estimated", note: "produced by a model" }
+    ].forEach(function (spec) {
+      var stats = (data.stats && data.stats[spec.kind]) || {};
+      var group = element("div", "total");
+
+      var term = element("dt");
+      term.appendChild(element("span", "mark mark-" + spec.kind));
+      term.appendChild(element("span", null, spec.label));
+      group.appendChild(term);
+
+      var value = element("dd", null, duration(stats.total_seconds || 0));
+      var sub = element("span", "total-sub", spec.note);
+      value.appendChild(sub);
+      group.appendChild(value);
+
+      node.appendChild(group);
+    });
+
+    var streak = (data.stats && data.stats.measured && data.stats.measured.streak) || {};
+    var group = element("div", "total");
+    group.appendChild(element("dt", null, "Streak"));
+    var value = element("dd", null, (streak.current || 0) + (streak.current === 1 ? " day" : " days"));
+    value.appendChild(element("span", "total-sub", "longest " + (streak.longest || 0)));
+    group.appendChild(value);
+    node.appendChild(group);
+  }
+
+  function render(data) {
+    var now = data.currently_reading || [];
+    var finished = data.recently_finished || [];
+
+    fillList(
+      document.getElementById("now"),
+      now,
+      function (book) {
+        return bookRow(book, book.percent + "%", "read " + shortDate(book.last_read), book.percent);
+      },
+      "Nothing open. A book appears here once it is closed on a device."
+    );
+
+    fillList(
+      document.getElementById("finished"),
+      finished,
+      function (book) {
+        return bookRow(
+          book,
+          shortDate(book.finished),
+          book.times_read > 1 ? "read " + book.times_read + "×" : ""
+        );
+      },
+      "Nothing finished in this window."
+    );
+
+    document.getElementById("now-count").textContent =
+      now.length ? now.length + (now.length === 1 ? " book" : " books") : "";
+    document.getElementById("finished-window").textContent = "last " + data.window_days + " days";
+    document.getElementById("record-window").textContent = "Asia/Kolkata";
+
+    renderStrip(data);
+    renderTotals(data);
+
+    var rolled = data.rollup_last_run
+      ? "Totals rolled up " + shortDate(istDay(data.rollup_last_run)) + "."
+      : "Totals have not been rolled up yet.";
+    document.getElementById("colophon").textContent =
+      rolled + " Days start at midnight in Asia/Kolkata. Measured and estimated " +
+      "time are counted separately and never summed.";
+  }
+
+  fetch(ENDPOINT, { headers: { accept: "application/json" } })
+    .then(function (response) {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.json();
+    })
+    .then(render)
+    .catch(function () {
+      document.getElementById("colophon").textContent =
+        "The reading data did not load. It will be back when the sync server is reachable.";
+      ["now", "finished"].forEach(function (id) {
+        var node = document.getElementById(id);
+        node.textContent = "";
+        node.appendChild(element("li", "empty", "Unavailable."));
+      });
+      document.getElementById("record-section").hidden = true;
+    });
+})();
+</script>
+</body>
+</html>

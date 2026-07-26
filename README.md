@@ -35,6 +35,30 @@ site itself doesn't move.
 - Optional session history with explicit provenance (see below)
 - Runs comfortably inside Cloudflare's free tier for a single reader
 
+## What's in here
+
+Three deployables, split by how often each is allowed to be offline rather than by
+what it does:
+
+| Path | Runs | Holds |
+|---|---|---|
+| `worker/` | Cloudflare, always | The kosync protocol, D1, the public `/api/reading` route, a nightly rollup |
+| `laptop/` | Sometimes | `shelf`, an ingest pipeline; `kostats`, the statistics importer |
+| `site/reading/` | Static | A single self-contained page for the public reading view |
+
+Only the Worker has to be reachable when you open a book. Everything else can be
+asleep for a month without anything breaking.
+
+### If you fork this
+
+Four things are specific to one person and need swapping. None of them are secrets —
+the actual secrets (`AUTH_PEPPER`, the D1 API token) never enter the repo:
+
+- `worker/wrangler.jsonc` — the `routes` hostnames and `database_id`
+- `worker/src/time.ts` — `IST_OFFSET_SECONDS`, if you do not read in India
+- `worker/wrangler.jsonc` — the cron, which is set for 01:00 IST
+- `site/reading/index.html` — the standfirst mentions three devices
+
 ## Provenance, or: not lying to yourself
 
 If you import reading history from elsewhere, `spine` requires every session row to
@@ -58,14 +82,20 @@ part; everything around it is opinionated and probably wrong for you.
 ## Setup
 
 ```bash
-npx wrangler d1 create spine
-npx wrangler d1 execute spine --remote --file=./schema.sql
-npx wrangler secret put AUTH_PEPPER
+cd worker
+npm install
+npx wrangler d1 create spine          # put the database_id in wrangler.jsonc
+npx wrangler d1 migrations apply spine --remote
+openssl rand -hex 32 | npx wrangler secret put AUTH_PEPPER
 npx wrangler deploy
 ```
 
-The `--remote` flag matters: without it, wrangler executes the schema against a local
-development copy and the deployed Worker sees an empty database.
+The `--remote` flag matters: without it, wrangler applies the migrations to a local
+development copy and the deployed Worker sees an empty database, with no error to
+say so.
+
+The full walkthrough — including the route-precedence check and the WAF rate-limit
+rule — is in [DEPLOY.md](DEPLOY.md).
 
 Registration is open only while the `users` table is empty, and closes itself after
 the first account. Register **from KOReader**, not with curl: the client sends an MD5
