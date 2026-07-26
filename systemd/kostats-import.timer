@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily import of measured reading time from KOReader devices
+
+[Timer]
+# Just after the nightly rollup would have run, so a day's reading is imported
+# before the following night's aggregation rather than a day late.
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+RandomizedDelaySec=20m
+
+[Install]
+WantedBy=timers.target

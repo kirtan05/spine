@@ -1,0 +1,12 @@
+[Unit]
+Description=Collect KOReader reading statistics and import measured sessions
+Documentation=file:///home/kirtan/Desktop/projects/spine/laptop/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/Desktop/projects/spine/systemd/collect-stats.sh
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=1800

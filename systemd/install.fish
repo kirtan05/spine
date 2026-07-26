@@ -5,9 +5,9 @@ set -l here (dirname (status --current-filename))
 set -l unit_dir "$HOME/.config/systemd/user"
 
 mkdir -p $unit_dir
-chmod +x $here/backup.sh
+chmod +x $here/backup.sh $here/collect-stats.sh
 
-for unit in spine-backup.service spine-backup.timer shelf-ingest.path shelf-ingest.service
+for unit in spine-backup.service spine-backup.timer shelf-ingest.path shelf-ingest.service kostats-import.service kostats-import.timer
     ln -sf (realpath $here/$unit) $unit_dir/$unit
     echo "linked $unit"
 end
@@ -23,6 +23,11 @@ echo "enabled spine-backup.timer"
 mkdir -p "$HOME/inbox"
 systemctl --user enable --now shelf-ingest.path
 echo "enabled shelf-ingest.path (watching $HOME/inbox)"
+
+# Measured reading time is the only thing here that cannot be regenerated, and it
+# only exists on the devices until something collects it.
+systemctl --user enable --now kostats-import.timer
+echo "enabled kostats-import.timer"
 
 # Without this the units stop when the last session closes, so nothing runs while
 # the laptop is logged out.
