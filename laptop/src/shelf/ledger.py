@@ -90,6 +90,10 @@ class Ledger:
             "SELECT * FROM quarantined WHERE content_sha256 = ?", (content_sha256,)
         ).fetchone()
 
+    def all_published(self) -> list[Entry]:
+        rows = self.conn.execute("SELECT * FROM ingested").fetchall()
+        return [Entry(**dict(row)) for row in rows]
+
     def unsynced(self) -> list[Entry]:
         rows = self.conn.execute("SELECT * FROM ingested WHERE synced_to_d1 = 0").fetchall()
         return [Entry(**dict(row)) for row in rows]

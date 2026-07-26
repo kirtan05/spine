@@ -14,6 +14,7 @@ from spinecore.partial_md5 import partial_md5
 
 from .ledger import Ledger
 from .pipeline import Action, exclusive, inbox_files, ingest_paths, sync_catalogue
+from .refile import apply_plan, build_plan, load_mapping
 
 
 def _ingest(paths: list[Path], config, ledger: Ledger) -> int:
@@ -61,6 +62,10 @@ def main(argv: list[str] | None = None) -> int:
     ingest.add_argument("paths", nargs="*", type=Path)
 
     sub.add_parser("sync-catalogue", help="push pending documents rows to D1")
+
+    ref = sub.add_parser("refile", help="apply curated series metadata to published books")
+    ref.add_argument("mapping", type=Path, help="JSON: [{author, series, titles: {title: index}}]")
+    ref.add_argument("--apply", action="store_true", help="actually move files (default: dry run)")
     sub.add_parser("status", help="ledger counts and configured paths")
 
     hash_cmd = sub.add_parser("hash", help="print KOReader's doc_hash for a file")
@@ -82,6 +87,24 @@ def main(argv: list[str] | None = None) -> int:
                     print("another ingest is already running; nothing to do")
                     return 0
                 return _ingest(args.paths, config, ledger)
+
+        if args.command == "refile":
+            plans, problems = build_plan(load_mapping(args.mapping), config, ledger)
+            for plan in plans:
+                marker = "move" if plan.moves else "keep"
+                print(f"  {marker}  {plan.series} {plan.series_index:g} - {plan.title}")
+            for problem in problems:
+                print(f"  SKIP  {problem.key}: {problem.reason}")
+
+            if not args.apply:
+                print(f"\n{len(plans)} to refile, {len(problems)} skipped (dry run; pass --apply)")
+                return 0
+
+            moved, failures = apply_plan(plans, ledger)
+            for failure in failures:
+                print(f"  FAILED {failure.key}: {failure.reason}")
+            print(f"\n{moved} moved, {len(plans) - moved} already in place, {len(failures)} failed")
+            return 1 if failures else 0
 
         if args.command == "sync-catalogue":
             synced, pending, note = sync_catalogue(ledger)
