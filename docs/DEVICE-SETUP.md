@@ -29,24 +29,34 @@ the password in a header on every request — that is inherited from kosync and 
 server implementation can fix it. A single-purpose random credential makes it not
 matter.
 
-## 3. Document matching method → Binary
+## 3. Document matching method — confirm Binary
 
-**Progress sync → Document matching method → Binary**
+**Progress sync → Document matching method**
+
+There are exactly two options, and the full labels are:
+
+- **"Binary. Only identical files will be kept in sync."** ← this one
+- "Filename. Files with matching names will be kept in sync."
+
+**Binary is already the default** (`checksum_method = CHECKSUM_METHOD.BINARY`, in
+the plugin's defaults), so this step is a check rather than a change. Confirm the
+tick is on Binary and move on.
 
 Binary identifies a book by a partial MD5 of its contents. Filename matching would
 fork progress the moment a file was renamed, and would merge two different books
 that happened to share a name.
 
-This must be **the same on all three devices** or they will not recognise each
-other's books at all.
+Whatever you pick, it must be **the same on every device** or they will not
+recognise each other's books at all.
 
 ## 4. Send document metadata → on
 
 **Progress sync → Send document metadata**
 
-**Off by default.** This is how the server learns titles and authors, and it is
-the primary title source for the `/reading` page. Without it every book on the
-page renders as "Unknown" until the ingest pipeline catches up.
+This is the one on that screen that genuinely needs changing: `send_metadata`
+defaults to **false**. It is how the server learns titles and authors, and it is
+the primary title source for the `/reading` page. Without it every book renders as
+"Unknown" until the ingest pipeline catches up.
 
 ---
 
