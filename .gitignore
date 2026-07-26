@@ -34,6 +34,8 @@ spine-*.sql
 # repo and they are 270MB of someone's library.
 *.zip
 *.epub
+# ...except the reference vector verified against a real device.
+!laptop/tests/fixtures/koreader-verified.epub
 *.cbz
 *.cbr
 *.pdf
