@@ -17,8 +17,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from spinecore.config import cloudflare_config
-from spinecore.d1 import INSERT_SESSION, D1Client
+from spinecore.d1 import INSERT_SESSION, D1Client, get_client
 
 from .sessions import DEFAULT_GAP_SECONDS, PageEvent, Session, group_sessions, session_id
 
@@ -172,11 +171,9 @@ def import_all(
     client: D1Client | None = None
     note = "dry run — nothing written"
     if not dry_run:
-        config = cloudflare_config()
-        if config is None:
-            return [], "no D1 credentials — see DEPLOY.md step 10"
-        client = D1Client(config)
-        note = "ok"
+        client, note = get_client()
+        if client is None:
+            return [], note
 
     return [
         import_device(device_id, path, client, gap_seconds)

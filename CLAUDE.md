@@ -112,11 +112,30 @@ checkpoint — a successful-looking import quietly missing the newest reading.
   dev and tests fail with `ERR_FUTURE_COMPATIBILITY_DATE`.
 - v0.18 has no `defineWorkersConfig`; config uses the `cloudflareTest()` Vite plugin.
 
-## Secrets
+## Secrets and D1 access
 
 `AUTH_PEPPER` lives in `wrangler secret` (and `.dev.vars` locally). The scoped D1
 token lives in `laptop/.env`. Both are gitignored. The Worker exposes no admin
-surface by design — every write beyond kosync goes through the laptop-side token.
+surface by design — every write beyond kosync comes from the laptop.
+
+`spinecore.d1.get_client()` picks one of two transports: the REST API when
+`CF_API_TOKEN` is set, otherwise `wrangler d1 execute` reusing the `wrangler
+login` OAuth session. The wrangler path uses `--command`, **not** `--file`: the
+file form prints a run summary instead of rows, so a SELECT through it silently
+returns query statistics rather than data. It also has no parameter binding, so
+values are inlined by `sql_literal`/`inline_params` — that pair is the security
+boundary for the fallback and is tested directly in `tests/test_d1.py`.
+
+## The public page
+
+Two implementations, deliberately:
+
+- `site/reading/` — framework-free, self-contained, for anyone using this repo.
+- `kirtansite/src/pages/reading.astro` — the one actually deployed, written in
+  that site's design system. Its `<style>` must stay `is:global`, because Astro's
+  scoping never matches the elements the script creates at runtime.
+
+Changing the `/api/reading` response shape means updating both.
 
 ## Scope
 

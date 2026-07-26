@@ -25,3 +25,16 @@ quarantine/
 
 # D1 exports are the actual reading history; keep them out of git
 spine-*.sql
+
+# Editor swap files
+.*.sw[po]
+.*.kate-swp
+
+# Source archives and book files never belong in the repo — this is a public
+# repo and they are 270MB of someone's library.
+*.zip
+*.epub
+*.cbz
+*.cbr
+*.pdf
+takeout*/

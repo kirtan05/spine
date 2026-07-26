@@ -20,8 +20,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from spinecore.config import ShelfConfig, cloudflare_config
-from spinecore.d1 import UPSERT_DOCUMENT, D1Client
+from spinecore.config import ShelfConfig
+from spinecore.d1 import UPSERT_DOCUMENT, get_client
 from spinecore.partial_md5 import content_sha256, partial_md5
 
 from . import convert, spreads
@@ -198,11 +198,10 @@ def sync_catalogue(ledger: Ledger) -> tuple[int, int, str]:
     if not pending:
         return 0, 0, "nothing pending"
 
-    config = cloudflare_config()
-    if config is None:
-        return 0, len(pending), "no D1 credentials — see DEPLOY.md step 10"
+    client, how = get_client()
+    if client is None:
+        return 0, len(pending), how
 
-    client = D1Client(config)
     done: list[str] = []
     for entry in pending:
         client.query(
@@ -220,4 +219,4 @@ def sync_catalogue(ledger: Ledger) -> tuple[int, int, str]:
         done.append(entry.content_sha256)
 
     ledger.mark_synced(done)
-    return len(done), 0, "ok"
+    return len(done), 0, how
