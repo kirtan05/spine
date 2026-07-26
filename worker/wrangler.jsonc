@@ -1,0 +1,54 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "spine",
+  "main": "src/index.ts",
+  // Must not exceed the bundled workerd's build date, or local dev and tests fail
+  // with ERR_FUTURE_COMPATIBILITY_DATE. Bump it alongside `npm update wrangler`.
+  "compatibility_date": "2026-07-22",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Routes on the existing zone. The static site stays on Pages: Workers routes
+  // execute in front of whatever else serves the hostname and take precedence.
+  // `/spine-canary/*` exists to prove that precedence before any device is pointed
+  // here (see DEPLOY.md step 5). It is safe to delete once verified.
+  "routes": [
+    { "pattern": "kirtanjain.com/users/*", "zone_name": "kirtanjain.com" },
+    { "pattern": "kirtanjain.com/syncs/*", "zone_name": "kirtanjain.com" },
+    { "pattern": "kirtanjain.com/api/*", "zone_name": "kirtanjain.com" },
+    { "pattern": "kirtanjain.com/spine-canary/*", "zone_name": "kirtanjain.com" }
+  ],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "spine",
+      // filled in by `wrangler d1 create spine` — see DEPLOY.md step 2
+      "database_id": "REPLACE_WITH_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // 01:00 IST — late enough that "yesterday" in Asia/Kolkata is complete.
+  "triggers": {
+    "crons": ["30 19 * * *"]
+  },
+
+  "vars": {
+    // "newest" (default) or "furthest". See src/conflict.ts.
+    "CONFLICT_POLICY": "newest",
+    // Resolved percentage at which a book counts as finished.
+    "FINISHED_THRESHOLD": "0.98",
+    // Re-open registration after the first account. Normally left off.
+    "ALLOW_REGISTRATION": "false",
+    // How far back /api/reading exposes finished books.
+    "RECENT_WINDOW_DAYS": "90"
+  },
+
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+
+  // Secret, set with `wrangler secret put AUTH_PEPPER`:
+  //   AUTH_PEPPER — HMAC key for stored auth hashes. Never in this file.
+}

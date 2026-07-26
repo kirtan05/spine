@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local development. Never commit .dev.vars.
+#
+# In production this is set with:  wrangler secret put AUTH_PEPPER
+# Generate one with:               openssl rand -hex 32
+AUTH_PEPPER="replace-me-with-openssl-rand-hex-32"

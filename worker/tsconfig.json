@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022"],
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    // Runtime types come from `wrangler types` (worker-configuration.d.ts), which
+    // supersedes @cloudflare/workers-types. Regenerate after editing wrangler.jsonc.
+    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types", "node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "worker-configuration.d.ts", "*.ts"]
+}

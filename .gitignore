@@ -1,0 +1,27 @@
+node_modules/
+dist/
+.wrangler/
+worker-configuration.d.ts
+
+# secrets — AUTH_PEPPER lives here locally and in `wrangler secret` in production
+.dev.vars
+
+# python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# local state — never commit
+laptop/.env
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+backups/
+inbox/
+quarantine/
+
+# D1 exports are the actual reading history; keep them out of git
+spine-*.sql
