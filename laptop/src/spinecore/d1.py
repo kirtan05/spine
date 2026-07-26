@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import math
 import shutil
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -27,6 +26,7 @@ from typing import Any, Protocol
 import httpx
 
 from .config import CloudflareConfig, cloudflare_config
+from .process import run as run_tool
 
 WORKER_DIR = Path(__file__).resolve().parents[3] / "worker"
 
@@ -108,14 +108,11 @@ class WranglerD1Client:
         # the rows, so a SELECT through it silently returns query statistics.
         # subprocess passes this as one argv element, so there is no shell to
         # escape through — the escaping that matters is inline_params'.
-        proc = subprocess.run(
+        proc = run_tool(
             ["npx", "--yes", "wrangler", "d1", "execute", self.database,
              "--remote", "--json", "--command", statement],
-            capture_output=True,
-            text=True,
-            cwd=str(self.cwd),
             timeout=self.timeout,
-            check=False,
+            cwd=self.cwd,
         )
 
         if proc.returncode != 0:

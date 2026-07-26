@@ -26,7 +26,7 @@ from spinecore.partial_md5 import content_sha256, partial_md5
 
 from . import convert, spreads
 from . import publish as publishing
-from .identify import Identity, Kind, identify
+from .identify import Identity, Kind, identify, published_suffix
 from .ledger import Entry, Ledger
 from .metadata import BookMeta, MetadataError, extract
 from .naming import target_path
@@ -87,7 +87,7 @@ def ingest_file(source: Path, config: ShelfConfig, ledger: Ledger) -> Outcome:
             return _quarantine(source, source_hash, f"conversion-failed-{err}", config, ledger)
 
         try:
-            dest = target_path(config.library, meta, payload.suffix)
+            dest = target_path(config.library, meta, published_suffix(identity, source))
         except ValueError as err:
             return _quarantine(source, source_hash, f"unnameable-{err}", config, ledger)
 

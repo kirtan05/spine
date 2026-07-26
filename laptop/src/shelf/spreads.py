@@ -20,9 +20,10 @@ decided before books reach a reader, not after.
 from __future__ import annotations
 
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
+
+from spinecore.process import run as run_tool
 
 
 class SpreadsUnavailable(RuntimeError):
@@ -56,7 +57,7 @@ def process(source: Path, profile: str, dest_dir: Path) -> Path:
             "--output", str(out_dir),
             str(source),
         ]
-        proc = subprocess.run(command, capture_output=True, text=True, timeout=3600, check=False)
+        proc = run_tool(command, timeout=3600)
         if proc.returncode != 0:
             raise SpreadsUnavailable(
                 f"kcc-c2e exited {proc.returncode}: {proc.stderr.strip()[:300]}"

@@ -18,6 +18,8 @@ import zipfile
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from spinecore.process import run as run_tool
+
 from .identify import Identity, Kind
 
 
@@ -59,13 +61,7 @@ def epub_metadata(path: Path) -> BookMeta:
     carries everything else.
     """
     try:
-        proc = subprocess.run(
-            ["ebook-meta", str(path)],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
+        proc = run_tool(["ebook-meta", str(path)], timeout=120)
     except (OSError, subprocess.TimeoutExpired) as err:
         raise MetadataError(f"ebook-meta failed: {err}") from err
 
@@ -82,18 +78,35 @@ def epub_metadata(path: Path) -> BookMeta:
             fields[_EBOOK_META_FIELDS[key]] = value.strip()
 
     series, index = _split_series(fields.get("series"))
-    authors = fields.get("authors")
-    # calibre renders an unknown author literally; treat it as absent.
-    if authors and authors.strip().lower() in {"unknown", "unknown & unknown"}:
-        authors = None
 
     return BookMeta(
         title=fields.get("title") or None,
-        authors=authors,
+        authors=clean_authors(fields.get("authors")),
         series=series,
         series_index=index,
         source="ebook-meta",
     )
+
+
+#: calibre prints the author-sort form after the name: ``Will Wight [Wight, Will]``.
+_AUTHOR_SORT = re.compile(r"\s*\[[^\]]*\]\s*$")
+
+
+def clean_authors(value: str | None) -> str | None:
+    """Strip calibre's bracketed author-sort and its literal "Unknown".
+
+    Left in, the sort form becomes part of the directory name — and because the
+    naming step splits multiple authors on commas, ``Will Wight [Wight, Will]``
+    files the whole Cradle series under a folder called ``Will Wight [Wight``.
+    """
+    if not value:
+        return None
+    names = []
+    for part in re.split(r"\s*&\s*", value):
+        name = _AUTHOR_SORT.sub("", part).strip()
+        if name and name.lower() != "unknown":
+            names.append(name)
+    return " & ".join(names) or None
 
 
 def _split_series(value: str | None) -> tuple[str | None, float | None]:
@@ -179,13 +192,7 @@ def parse_comic_info(raw: bytes) -> BookMeta:
 def _comictagger(path: Path) -> BookMeta:
     """Fall back to comictagger for archives with metadata we do not parse."""
     try:
-        proc = subprocess.run(
-            ["comictagger", "--print", "--type", "cr", str(path)],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
+        proc = run_tool(["comictagger", "--print", "--type", "cr", str(path)], timeout=120)
     except (OSError, subprocess.TimeoutExpired):
         return BookMeta()
     if proc.returncode != 0 or not proc.stdout.strip():

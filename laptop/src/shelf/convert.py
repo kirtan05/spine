@@ -23,6 +23,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from spinecore.process import run as run_tool
+
 from .identify import IMAGE_SUFFIXES, Kind
 from .metadata import BookMeta
 
@@ -61,7 +63,7 @@ def extracted(source: Path, kind: Kind) -> Iterator[Path]:
 
 def _run(command: list[str], source: Path) -> None:
     try:
-        proc = subprocess.run(command, capture_output=True, text=True, timeout=1800, check=False)
+        proc = run_tool(command, timeout=1800)
     except (OSError, subprocess.TimeoutExpired) as err:
         raise ConversionError(f"{command[0]} failed on {source.name}: {err}") from err
     if proc.returncode != 0:

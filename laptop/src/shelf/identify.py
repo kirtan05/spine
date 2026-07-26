@@ -98,6 +98,24 @@ def _identify_zip(path: Path) -> Identity:
         return Identity(Kind.UNKNOWN, f"corrupt zip: {err}")
 
 
+def published_suffix(identity: Identity, source: Path) -> str:
+    """The extension a file should be published under, from what it *is*.
+
+    Not from what it was called. In a Google Play Books export, 71 of 156 files
+    are named ``.pdf`` and every one of them is an EPUB — publishing those under
+    the source extension hands a zip to a PDF renderer in both KOReader and
+    Kavita. The MOBI family keeps its own extension because .mobi, .azw and .azw3
+    are genuinely different containers.
+    """
+    if identity.is_comic:
+        return ".cbz"
+    if identity.kind is Kind.EPUB:
+        return ".epub"
+    if identity.kind is Kind.PDF:
+        return ".pdf"
+    return source.suffix.lower() or ".bin"
+
+
 def is_probably_stable(path: Path, previous_size: int | None) -> bool:
     """Size-stability fallback for multi-part downloads.
 
