@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly export of the spine D1 database
+
+[Timer]
+OnCalendar=Sun 03:00
+# The laptop is asleep most of the time. Without this, a timer that fires while
+# the machine is off is simply skipped — and the backup silently never runs.
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

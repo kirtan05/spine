@@ -22,8 +22,8 @@
     {
       "binding": "DB",
       "database_name": "spine",
-      // filled in by `wrangler d1 create spine` — see DEPLOY.md step 2
-      "database_id": "REPLACE_WITH_DATABASE_ID",
+      // from `wrangler d1 create spine` — see DEPLOY.md step 2
+      "database_id": "8af2502d-105b-4bc7-8a1a-d6ef18965486",
       "migrations_dir": "migrations"
     }
   ],

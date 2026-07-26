@@ -1,0 +1,14 @@
+[Unit]
+Description=Export the spine D1 database
+Documentation=file:///home/kirtan/Desktop/projects/spine/DEPLOY.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/projects/spine/worker
+ExecStart=%h/Desktop/projects/spine/systemd/backup.sh
+# Wrangler is chatty and this is a background job; keep the journal readable.
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=1800

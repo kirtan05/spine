@@ -1,0 +1,12 @@
+[Unit]
+Description=Watch the spine inbox for new files
+
+[Path]
+# Close-for-write is the right signal: it fires when a download finishes, rather
+# than when it starts. A time-based debounce either fires too early on a slow
+# download or adds latency to every fast one.
+PathChanged=%h/inbox
+DirectoryNotEmpty=%h/inbox
+
+[Install]
+WantedBy=default.target

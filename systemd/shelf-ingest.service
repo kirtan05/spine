@@ -1,0 +1,15 @@
+[Unit]
+Description=Ingest new files from the spine inbox
+Documentation=file:///home/kirtan/Desktop/projects/spine/laptop/README.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/projects/spine/laptop
+ExecStart=/usr/bin/env uv run shelf ingest
+# A multi-part download closes its file several times. The pipeline is idempotent
+# on content hash, so a spurious run is a no-op — but waiting a moment avoids
+# picking up a half-written part in the first place.
+ExecStartPre=/usr/bin/sleep 5
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=3600
