@@ -13,7 +13,15 @@ from spinecore.config import shelf_config
 from spinecore.partial_md5 import partial_md5
 
 from .ledger import Ledger
-from .pipeline import Action, exclusive, inbox_files, ingest_paths, sync_catalogue
+from .pipeline import (
+    Action,
+    exclusive,
+    inbox_files,
+    ingest_paths,
+    prune_inbox,
+    retry_quarantine,
+    sync_catalogue,
+)
 from .refile import apply_plan, build_plan, load_mapping
 
 
@@ -47,6 +55,7 @@ def _ingest(paths: list[Path], config, ledger: Ledger) -> int:
         f"{total[Action.SKIPPED]} skipped, "
         f"{total[Action.QUARANTINED]} quarantined"
     )
+    prune_inbox(config)
     synced, pending, note = sync_catalogue(ledger)
     print(f"catalogue: {synced} synced, {pending} pending ({note})")
     # A quarantined file is a decision waiting to be made, not a failure of this
@@ -66,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     ref = sub.add_parser("refile", help="apply curated series metadata to published books")
     ref.add_argument("mapping", type=Path, help="JSON: [{author, series, titles: {title: index}}]")
     ref.add_argument("--apply", action="store_true", help="actually move files (default: dry run)")
+    sub.add_parser("retry-quarantine", help="return quarantined files to the inbox and re-try")
     sub.add_parser("status", help="ledger counts and configured paths")
 
     hash_cmd = sub.add_parser("hash", help="print KOReader's doc_hash for a file")
@@ -87,6 +97,16 @@ def main(argv: list[str] | None = None) -> int:
                     print("another ingest is already running; nothing to do")
                     return 0
                 return _ingest(args.paths, config, ledger)
+
+        if args.command == "retry-quarantine":
+            returned = retry_quarantine(config, ledger)
+            print(f"{returned} file(s) returned to the inbox")
+            if returned:
+                with exclusive(config) as acquired:
+                    if acquired:
+                        return _ingest([], config, ledger)
+                print("another ingest is running; it will pick them up")
+            return 0
 
         if args.command == "refile":
             plans, problems = build_plan(load_mapping(args.mapping), config, ledger)

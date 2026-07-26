@@ -124,3 +124,32 @@ class TestSortOrderAuthors:
         assert target_path(LIBRARY, meta, ".epub") == Path(
             "/library/Robert Jordan/The Wheel of Time/The Wheel of Time.epub"
         )
+
+
+class TestRealComicFilenames:
+    """Scene releases carry scanner and quality tags after the issue number."""
+
+    def test_parses_a_release_with_trailing_tags(self):
+        from shelf.metadata import parse_comic_filename
+
+        meta = parse_comic_filename("Alias 002 (2001) (Digital) (Zone-Empire).cbr")
+        assert meta.series == "Alias"
+        assert meta.series_index == 2
+
+    def test_still_refuses_a_bare_trailing_number(self):
+        # "Fahrenheit 451" is a title, not issue 451 of a series called Fahrenheit.
+        from shelf.metadata import parse_comic_filename
+
+        assert not parse_comic_filename("Fahrenheit 451.cbr").is_usable
+        assert not parse_comic_filename("Watchmen 5.cbr").is_usable
+
+    def test_does_not_repeat_a_synthesised_title_in_the_filename(self):
+        from shelf.metadata import parse_comic_filename
+
+        meta = parse_comic_filename("Alias 002 (2001) (Digital).cbr")
+        # Would otherwise read "Alias 02 - Alias #2.cbz".
+        assert target_path(LIBRARY, meta, ".cbz").name == "Alias 02.cbz"
+
+    def test_a_real_title_is_still_kept(self):
+        meta = BookMeta(title="The One With The Rocket", series="Saga", series_index=12)
+        assert target_path(LIBRARY, meta, ".cbz").name == "Saga 12 - The One With The Rocket.cbz"

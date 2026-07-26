@@ -76,7 +76,36 @@ def build_plan(
     for group in mapping:
         author = group.get("author")
         series = group["series"]
-        for title, index in group.get("titles", {}).items():
+        # `set_author` rewrites the author; `author` only selects. Comics from a
+        # scene release carry neither ComicInfo nor an author in the filename, so
+        # they land under "Unknown Author" and the series is the only handle.
+        set_author = group.get("set_author")
+
+        if not group.get("titles"):
+            # Whole-series form: act on every book already filed under this series.
+            for row in [r for r in rows if (r.series or "") == series]:
+                authors = set_author or row.authors
+                meta = BookMeta(
+                    title=row.title, authors=authors,
+                    series=series, series_index=row.series_index,
+                )
+                source = Path(row.published_path)
+                plans.append(
+                    Plan(
+                        doc_hash=row.doc_hash,
+                        title=row.title or series,
+                        authors=authors,
+                        series=series,
+                        series_index=row.series_index or 0.0,
+                        source=source,
+                        dest=target_path(config.library, meta, source.suffix),
+                    )
+                )
+            if not any(p.series == series for p in plans):
+                problems.append(Problem(series, "no books are filed under this series"))
+            continue
+
+        for title, index in group["titles"].items():
             wanted = _normalise(title)
             candidates = [
                 row
@@ -92,15 +121,16 @@ def build_plan(
                 continue
 
             row = candidates[0]
+            authors = set_author or row.authors
             meta = BookMeta(
-                title=title, authors=row.authors, series=series, series_index=float(index)
+                title=title, authors=authors, series=series, series_index=float(index)
             )
             source = Path(row.published_path)
             plans.append(
                 Plan(
                     doc_hash=row.doc_hash,
                     title=title,
-                    authors=row.authors,
+                    authors=authors,
                     series=series,
                     series_index=float(index),
                     source=source,
@@ -137,9 +167,11 @@ def apply_plan(plans: list[Plan], ledger: Ledger) -> tuple[int, list[Problem]]:
             moved += 1
 
         ledger.conn.execute(
-            """UPDATE ingested SET published_path = ?, title = ?, series = ?, series_index = ?
+            """UPDATE ingested
+               SET published_path = ?, title = ?, authors = ?, series = ?, series_index = ?
                WHERE doc_hash = ?""",
-            (str(plan.dest), plan.title, plan.series, plan.series_index, plan.doc_hash),
+            (str(plan.dest), plan.title, plan.authors, plan.series, plan.series_index,
+             plan.doc_hash),
         )
         if client is not None:
             client.query(

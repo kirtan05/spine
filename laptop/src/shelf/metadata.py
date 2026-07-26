@@ -244,39 +244,48 @@ def _comictagger(path: Path) -> BookMeta:
     )
 
 
-# ``Saga 012 (2013).cbz``, ``Saga v03 (2014).cbz``, ``Saga #12.cbz``
-_FILENAME_PATTERNS = (
-    re.compile(
-        r"^(?P<series>.+?)[ _-]+(?:#|v|vol\.?|volume)?[ _]?(?P<index>\d{1,4})(?:\s*\(\d{4}\))?$",
-        re.I,
-    ),
+#: Scanner, quality and group tags trailing the issue number. A real release is
+#: named "Alias 002 (2001) (Digital) (Zone-Empire)", not "Alias 002".
+_TAG_GROUP = re.compile(r"[(\[{][^)\]}]*[)\]}]")
+
+#: ``Alias 002``, ``Saga #12``, ``Berserk v03``
+_ISSUE = re.compile(
+    r"^(?P<series>.+?)[ _-]+(?:(?P<marker>#|v|vol\.?|volume)[ _]?)?(?P<index>\d{1,4})$",
+    re.I,
 )
 
 
 def parse_comic_filename(filename: str) -> BookMeta:
-    """Last-resort parse, deliberately narrow.
+    """Last-resort parse, for comics with no embedded metadata at all.
 
-    Only matches ``<series> <number>`` with an optional volume marker and year.
-    Anything looser starts merging unrelated series, which is exactly the failure
-    quarantine exists to prevent.
+    Deliberately narrow. A wrong series assignment silently merges two series in
+    Kavita and leaves no trace, so anything short of a confident match goes to
+    quarantine instead.
+
+    The confidence test is an explicit marker (``#``, ``v``, ``vol``) or a
+    zero-padded number. Without one, "Fahrenheit 451" parses just as happily as
+    "Alias 002" and files a novel as issue 451 of a series called Fahrenheit.
     """
-    stem = Path(filename).stem.strip()
-    stem = re.sub(r"\s+", " ", stem)
-    for pattern in _FILENAME_PATTERNS:
-        match = pattern.match(stem)
-        if not match:
-            continue
-        series = match.group("series").strip(" -_")
-        if not series or len(series) < 2:
-            continue
-        index = float(match.group("index"))
-        return BookMeta(
-            title=f"{series} #{match.group('index')}",
-            series=series,
-            series_index=index,
-            source="filename",
-        )
-    return BookMeta(source="none")
+    stem = _TAG_GROUP.sub(" ", Path(filename).stem)
+    stem = re.sub(r"\s+", " ", stem).strip(" -_")
+
+    match = _ISSUE.match(stem)
+    if not match:
+        return BookMeta(source="none")
+
+    series = match.group("series").strip(" -_")
+    raw = match.group("index")
+    if len(series) < 2 or (not match.group("marker") and not raw.startswith("0")):
+        return BookMeta(source="none")
+
+    index = float(raw)
+    plain = int(index) if index == int(index) else index
+    return BookMeta(
+        title=f"{series} #{plain}",
+        series=series,
+        series_index=index,
+        source="filename",
+    )
 
 
 def extract(path: Path, identity: Identity) -> BookMeta:

@@ -15,6 +15,7 @@ input reads the ledger and stops, without converting, hashing, or writing.
 from __future__ import annotations
 
 import fcntl
+import shutil
 import tempfile
 import time
 from collections.abc import Iterator
@@ -215,6 +216,52 @@ def ingest_paths(paths: list[Path], config: ShelfConfig, ledger: Ledger) -> list
         if path.is_file() and not path.name.startswith("."):
             outcomes.append(ingest_file(path, config, ledger))
     return outcomes
+
+
+def prune_inbox(config: ShelfConfig) -> None:
+    """Remove directories the inbox is left with once their files are taken.
+
+    Comics arrive as a folder per series. The files inside get published, the
+    empty folder stays, and `shelf status` reports an inbox that looks unprocessed.
+    """
+    if not config.inbox.is_dir():
+        return
+    for path in sorted((p for p in config.inbox.rglob("*") if p.is_dir()), reverse=True):
+        try:
+            if not any(path.iterdir()):
+                path.rmdir()
+        except OSError:
+            pass
+
+
+def retry_quarantine(config: ShelfConfig, ledger: Ledger) -> int:
+    """Return quarantined files to the inbox so they can be tried again.
+
+    Quarantine is a decision deferred, not a verdict. When metadata handling
+    improves — a filename pattern the parser did not know, a tool that was not
+    installed — the files already set aside deserve another pass, and the ledger
+    rows that record the old refusal have to go with them.
+    """
+    rows = ledger.conn.execute(
+        "SELECT content_sha256, path, source_name FROM quarantined"
+    ).fetchall()
+    returned = 0
+
+    for row in rows:
+        path = Path(row["path"])
+        if path.is_file():
+            dest = config.inbox / row["source_name"]
+            if dest.exists():
+                dest = config.inbox / f"{row['content_sha256'][:8]}-{row['source_name']}"
+            config.inbox.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(path), dest)
+            returned += 1
+        ledger.conn.execute(
+            "DELETE FROM quarantined WHERE content_sha256 = ?", (row["content_sha256"],)
+        )
+
+    ledger.conn.commit()
+    return returned
 
 
 def inbox_files(config: ShelfConfig) -> list[Path]:

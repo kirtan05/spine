@@ -44,6 +44,14 @@ def primary_author(authors: str | None) -> str:
     return sanitise(first) or "Unknown Author"
 
 
+def _synthetic_title(meta: BookMeta) -> str | None:
+    """The title parse_comic_filename invents when a comic has no metadata."""
+    if not meta.series or meta.series_index is None:
+        return None
+    index = meta.series_index
+    return f"{meta.series} #{int(index) if index == int(index) else index}"
+
+
 def target_path(library: Path, meta: BookMeta, extension: str) -> Path:
     """Where a book belongs. Raises if there is not enough metadata to decide."""
     if not meta.is_usable:
@@ -56,7 +64,10 @@ def target_path(library: Path, meta: BookMeta, extension: str) -> Path:
 
     if series:
         index = format_index(meta.series_index)
-        stem = f"{series} {index} - {title}" if index and title else (
+        # A title synthesised from series and number carries nothing the filename
+        # does not already say, and repeating it reads as "Alias 02 - Alias #2".
+        informative = title and title != _synthetic_title(meta)
+        stem = f"{series} {index} - {title}" if index and informative else (
             f"{series} {index}" if index else (title or series)
         )
         return library / author / series / f"{sanitise(stem)}{extension}"

@@ -1,0 +1,7 @@
+[
+  {
+    "series": "Alias",
+    "set_author": "Brian Michael Bendis",
+    "_note": "Alias (Marvel MAX, 2001-2004), written by Brian Michael Bendis. The CBRs are a scene release with no ComicInfo.xml and no author in the filename, so the pipeline correctly refused to invent one and filed them under Unknown Author."
+  }
+]
