@@ -14,8 +14,11 @@ input reads the ledger and stops, without converting, hashing, or writing.
 
 from __future__ import annotations
 
+import fcntl
 import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -53,16 +56,31 @@ class Outcome:
 
 
 def ingest_file(source: Path, config: ShelfConfig, ledger: Ledger) -> Outcome:
+    # Another run may have taken this file between the directory scan and here.
+    if not source.is_file():
+        return Outcome(Action.SKIPPED, source, "taken by another run")
+
     source_hash = content_sha256(source)
 
+    # A skipped file still has to leave the inbox. Left there it is not merely
+    # untidy: the path unit re-triggers on the directory, the next run skips it
+    # again, and the two spin against each other indefinitely.
     existing = ledger.published(source_hash)
-    if existing is not None:
+    if existing is not None and Path(existing.published_path).is_file():
+        source.unlink(missing_ok=True)
         return Outcome(
             Action.SKIPPED, source, "already ingested",
             Path(existing.published_path), existing.doc_hash,
         )
-    if ledger.quarantined(source_hash) is not None:
+
+    quarantined = ledger.quarantined(source_hash)
+    if quarantined is not None and Path(quarantined["path"]).is_file():
+        source.unlink(missing_ok=True)
         return Outcome(Action.SKIPPED, source, "already quarantined")
+
+    # Falling through when the recorded copy has gone is deliberate: the ledger
+    # says we handled these bytes, but the file it points at no longer exists, so
+    # re-publishing is right and deleting the only remaining copy would not be.
 
     identity = identify(source)
     if identity.kind is Kind.UNKNOWN:
@@ -167,6 +185,28 @@ def _quarantine(
     ledger.record_quarantined(source_hash, source.name, reason, dest)
     source.unlink(missing_ok=True)
     return Outcome(Action.QUARANTINED, source, reason, dest)
+
+
+@contextmanager
+def exclusive(config: ShelfConfig) -> Iterator[bool]:
+    """Hold the pipeline lock, or yield False if another run already has it.
+
+    The systemd path unit fires on every change to the inbox, so a manual
+    `shelf ingest` and a triggered one can overlap trivially — copying a batch of
+    files in while a run is in progress is enough. Two processes over one inbox
+    means one deletes a file the other is part-way through hashing.
+    """
+    config.data_dir.mkdir(parents=True, exist_ok=True)
+    with open(config.data_dir / "shelf.lock", "w") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            yield False
+            return
+        # The lock releases when the file closes, i.e. when this block exits —
+        # including if the process dies, which is why it is flock and not a
+        # sentinel file that would need cleaning up after a crash.
+        yield True
 
 
 def ingest_paths(paths: list[Path], config: ShelfConfig, ledger: Ledger) -> list[Outcome]:

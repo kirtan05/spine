@@ -99,3 +99,28 @@ def test_an_epub_named_pdf_lands_in_the_library_as_epub(tmp_path, monkeypatch):
     if outcome.action is Action.PUBLISHED:
         assert outcome.dest is not None
         assert outcome.dest.suffix == ".epub"
+
+
+class TestSortOrderAuthors:
+    """Some exports carry the author already in sort order: `Jordan, Robert`."""
+
+    def test_flips_when_calibre_says_the_name_is_its_own_sort_form(self):
+        assert clean_authors("Jordan, Robert [Jordan, Robert]") == "Robert Jordan"
+
+    def test_does_not_flip_when_the_display_name_is_already_correct(self):
+        assert clean_authors("Will Wight [Wight, Will]") == "Will Wight"
+
+    def test_does_not_mangle_two_authors_separated_by_a_comma(self):
+        # No bracket, so no signal that this is sort order — and flipping it would
+        # produce one mangled name out of two real ones.
+        assert clean_authors("Terry Pratchett, Neil Gaiman") == "Terry Pratchett, Neil Gaiman"
+
+    def test_leaves_a_multi_comma_name_alone(self):
+        assert clean_authors("Smith, John, Jr. [Smith, John, Jr.]") == "Smith, John, Jr."
+
+    def test_the_wheel_of_time_files_under_the_authors_real_name(self):
+        authors = clean_authors("Jordan, Robert [Jordan, Robert]")
+        meta = BookMeta(title="The Wheel of Time", authors=authors)
+        assert target_path(LIBRARY, meta, ".epub") == Path(
+            "/library/Robert Jordan/The Wheel of Time/The Wheel of Time.epub"
+        )

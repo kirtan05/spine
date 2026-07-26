@@ -13,7 +13,44 @@ from spinecore.config import shelf_config
 from spinecore.partial_md5 import partial_md5
 
 from .ledger import Ledger
-from .pipeline import Action, inbox_files, ingest_paths, sync_catalogue
+from .pipeline import Action, exclusive, inbox_files, ingest_paths, sync_catalogue
+
+
+def _ingest(paths: list[Path], config, ledger: Ledger) -> int:
+    """Drain the inbox, re-scanning until a pass finds nothing new.
+
+    The re-scan matters because files can land while a run is in progress — which
+    is exactly when someone is copying a batch in — and a single snapshot of the
+    directory would strand them until the next trigger.
+    """
+    explicit = bool(paths)
+    total = {action: 0 for action in Action}
+
+    for _ in range(20):
+        batch = paths if explicit else inbox_files(config)
+        if not batch:
+            break
+
+        for outcome in ingest_paths(batch, config, ledger):
+            print(outcome.describe())
+            total[outcome.action] += 1
+        if explicit:
+            break
+
+    if not any(total.values()):
+        print("inbox is empty")
+        return 0
+
+    print(
+        f"\n{total[Action.PUBLISHED]} published, "
+        f"{total[Action.SKIPPED]} skipped, "
+        f"{total[Action.QUARANTINED]} quarantined"
+    )
+    synced, pending, note = sync_catalogue(ledger)
+    print(f"catalogue: {synced} synced, {pending} pending ({note})")
+    # A quarantined file is a decision waiting to be made, not a failure of this
+    # run, so it does not fail the systemd unit.
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -39,29 +76,12 @@ def main(argv: list[str] | None = None) -> int:
 
     with Ledger(config.ledger) as ledger:
         if args.command == "ingest":
-            paths = args.paths or inbox_files(config)
-            if not paths:
-                print("inbox is empty")
-                return 0
-
-            outcomes = ingest_paths(paths, config, ledger)
-            for outcome in outcomes:
-                print(outcome.describe())
-
-            tally = {action: 0 for action in Action}
-            for outcome in outcomes:
-                tally[outcome.action] += 1
-            print(
-                f"\n{tally[Action.PUBLISHED]} published, "
-                f"{tally[Action.SKIPPED]} skipped, "
-                f"{tally[Action.QUARANTINED]} quarantined"
-            )
-
-            synced, pending, note = sync_catalogue(ledger)
-            print(f"catalogue: {synced} synced, {pending} pending ({note})")
-            # A quarantined file is a decision waiting to be made, not a failure
-            # of this run, so it does not fail the systemd unit.
-            return 0
+            with exclusive(config) as acquired:
+                if not acquired:
+                    # Not an error: the run that holds the lock is doing the work.
+                    print("another ingest is already running; nothing to do")
+                    return 0
+                return _ingest(args.paths, config, ledger)
 
         if args.command == "sync-catalogue":
             synced, pending, note = sync_catalogue(ledger)

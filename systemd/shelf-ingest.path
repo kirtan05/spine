@@ -2,11 +2,16 @@
 Description=Watch the spine inbox for new files
 
 [Path]
-# Close-for-write is the right signal: it fires when a download finishes, rather
-# than when it starts. A time-based debounce either fires too early on a slow
-# download or adds latency to every fast one.
+# Fires when the directory's contents change: a download finishing, rather than
+# starting. A time-based debounce either fires too early on a slow download or
+# adds latency to every fast one.
+#
+# DirectoryNotEmpty is deliberately NOT used. It re-triggers for as long as the
+# directory has anything in it, so a single file the pipeline cannot drain spins
+# the service continuously — 74 starts in twenty minutes, in practice. PathChanged
+# converges instead: the run removes files, that counts as one more change, the
+# next pass finds nothing and stops.
 PathChanged=%h/inbox
-DirectoryNotEmpty=%h/inbox
 
 [Install]
 WantedBy=default.target

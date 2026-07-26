@@ -1,6 +1,11 @@
 [Unit]
 Description=Ingest new files from the spine inbox
 Documentation=file:///home/kirtan/Desktop/projects/spine/laptop/README.md
+# Backstop against a trigger loop. The pipeline itself holds an flock so
+# concurrent runs cannot race, but this caps the damage if a unit ever
+# retriggers on its own output again.
+StartLimitIntervalSec=60
+StartLimitBurst=10
 
 [Service]
 Type=oneshot

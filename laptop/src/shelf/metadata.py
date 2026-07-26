@@ -89,21 +89,42 @@ def epub_metadata(path: Path) -> BookMeta:
 
 
 #: calibre prints the author-sort form after the name: ``Will Wight [Wight, Will]``.
-_AUTHOR_SORT = re.compile(r"\s*\[[^\]]*\]\s*$")
+_AUTHOR_WITH_SORT = re.compile(r"^(?P<name>.*?)\s*\[(?P<sort>[^\]]*)\]\s*$")
+
+
+def _normalise_author(part: str) -> str:
+    """One author, with calibre's sort form removed and sort order undone.
+
+    Two different problems share this bracket. Normally the display name and the
+    sort form differ — ``Will Wight [Wight, Will]`` — and the bracket is simply
+    noise that has to go, or the naming step's comma split files the whole series
+    under ``Will Wight [Wight``.
+
+    But when the two are *identical* and contain a comma, as in
+    ``Jordan, Robert [Jordan, Robert]``, the source metadata is itself in sort
+    order. That equality is the signal: flipping on a comma alone would turn
+    "Terry Pratchett, Neil Gaiman" into one mangled name, whereas here calibre is
+    telling us the display name was never in display order to begin with.
+    """
+    match = _AUTHOR_WITH_SORT.match(part.strip())
+    if not match:
+        return part.strip()
+
+    name, sort = match.group("name").strip(), match.group("sort").strip()
+    if sort and name == sort and name.count(",") == 1:
+        last, _, first = name.partition(",")
+        if last.strip() and first.strip():
+            return f"{first.strip()} {last.strip()}"
+    return name
 
 
 def clean_authors(value: str | None) -> str | None:
-    """Strip calibre's bracketed author-sort and its literal "Unknown".
-
-    Left in, the sort form becomes part of the directory name — and because the
-    naming step splits multiple authors on commas, ``Will Wight [Wight, Will]``
-    files the whole Cradle series under a folder called ``Will Wight [Wight``.
-    """
+    """Normalise calibre's author string, or None if it says nothing."""
     if not value:
         return None
     names = []
     for part in re.split(r"\s*&\s*", value):
-        name = _AUTHOR_SORT.sub("", part).strip()
+        name = _normalise_author(part)
         if name and name.lower() != "unknown":
             names.append(name)
     return " & ".join(names) or None
