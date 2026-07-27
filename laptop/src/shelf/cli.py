@@ -25,6 +25,23 @@ from .pipeline import (
 from .refile import apply_plan, build_plan, load_mapping
 
 
+def _already_read(doc_hashes: set[str]) -> set[str]:
+    """Which of these books already have reading history in D1.
+
+    Embedding metadata rewrites the file and changes its identity. Doing that to
+    a book that has been read orphans its progress and measured sessions with no
+    way back, so it is checked rather than assumed.
+    """
+    from spinecore.d1 import get_client
+
+    client, _ = get_client()
+    if client is None:
+        return set()
+    rows = client.query("SELECT doc_hash FROM progress")
+    rows += client.query("SELECT DISTINCT doc_hash FROM sessions WHERE doc_hash IS NOT NULL")
+    return {r["doc_hash"] for r in rows} & doc_hashes
+
+
 def _ingest(paths: list[Path], config, ledger: Ledger) -> int:
     """Drain the inbox, re-scanning until a pass finds nothing new.
 
@@ -75,6 +92,8 @@ def main(argv: list[str] | None = None) -> int:
     ref = sub.add_parser("refile", help="apply curated series metadata to published books")
     ref.add_argument("mapping", type=Path, help="JSON: [{author, series, titles: {title: index}}]")
     ref.add_argument("--apply", action="store_true", help="actually move files (default: dry run)")
+    ref.add_argument("--embed", action="store_true",
+                     help="also write the series into EPUBs (changes doc_hash; refuses if read)")
     sub.add_parser("retry-quarantine", help="return quarantined files to the inbox and re-try")
     sub.add_parser("status", help="ledger counts and configured paths")
 
@@ -120,7 +139,15 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"\n{len(plans)} to refile, {len(problems)} skipped (dry run; pass --apply)")
                 return 0
 
-            moved, failures = apply_plan(plans, ledger)
+            if args.embed:
+                read = _already_read({p.doc_hash for p in plans})
+                if read:
+                    print(f"\nREFUSED: {len(read)} of these books already have progress or")
+                    print("sessions recorded. Embedding changes doc_hash, which would orphan")
+                    print("that history permanently. Re-run without --embed.")
+                    return 1
+
+            moved, failures = apply_plan(plans, ledger, embed=args.embed)
             for failure in failures:
                 print(f"  FAILED {failure.key}: {failure.reason}")
             print(f"\n{moved} moved, {len(plans) - moved} already in place, {len(failures)} failed")

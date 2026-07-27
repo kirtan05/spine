@@ -130,6 +130,31 @@ def clean_authors(value: str | None) -> str | None:
     return " & ".join(names) or None
 
 
+def embed_epub_metadata(path: Path, meta: BookMeta) -> None:
+    """Write series metadata into an EPUB, in place.
+
+    Kavita's Book-type libraries take the series from inside the file and ignore
+    the folder path entirely — the opposite of how it treats comics, where
+    ComicInfo.xml and the path both work. A book with no embedded series is a
+    standalone series of one to Kavita, however neatly it is filed on disk.
+
+    **This changes the file, and therefore its doc_hash.** It must only ever run
+    before the file reaches a device: afterwards it forks the book and orphans
+    whatever progress and sessions were recorded against the old hash.
+    """
+    if meta.series is None:
+        return
+
+    command = ["ebook-meta", str(path), "--series", meta.series]
+    if meta.series_index is not None:
+        index = meta.series_index
+        command += ["--index", str(int(index) if index == int(index) else index)]
+
+    proc = run_tool(command, timeout=300)
+    if proc.returncode != 0:
+        raise MetadataError(f"ebook-meta could not write series: {proc.stderr.strip()[:200]}")
+
+
 def _split_series(value: str | None) -> tuple[str | None, float | None]:
     """calibre renders series as ``Name #3`` or ``Name #3.5``."""
     if not value:

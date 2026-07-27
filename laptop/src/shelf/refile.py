@@ -27,7 +27,7 @@ from spinecore.d1 import UPSERT_DOCUMENT, get_client
 from spinecore.partial_md5 import partial_md5
 
 from .ledger import Ledger
-from .metadata import BookMeta
+from .metadata import BookMeta, MetadataError, embed_epub_metadata
 from .naming import target_path
 
 
@@ -141,8 +141,16 @@ def build_plan(
     return plans, problems
 
 
-def apply_plan(plans: list[Plan], ledger: Ledger) -> tuple[int, list[Problem]]:
-    """Move files, then update the ledger and the D1 catalogue."""
+def apply_plan(
+    plans: list[Plan], ledger: Ledger, embed: bool = False
+) -> tuple[int, list[Problem]]:
+    """Move files, then update the ledger and the D1 catalogue.
+
+    With `embed`, EPUBs also get the series written into the file. That changes
+    the bytes and therefore the doc_hash — the one thing this system otherwise
+    never does — so it is opt-in, and only safe while the book has no progress or
+    sessions recorded against it. `shelf refile --embed` checks that first.
+    """
     client, _ = get_client()
     moved = 0
     problems: list[Problem] = []
@@ -166,6 +174,25 @@ def apply_plan(plans: list[Plan], ledger: Ledger) -> tuple[int, list[Problem]]:
             _prune(plan.source.parent)
             moved += 1
 
+        old_hash = plan.doc_hash
+        if embed and plan.dest.suffix.lower() == ".epub":
+            try:
+                embed_epub_metadata(
+                    plan.dest,
+                    BookMeta(series=plan.series, series_index=plan.series_index),
+                )
+            except MetadataError as err:
+                problems.append(Problem(plan.title, f"could not embed series: {err}"))
+                continue
+
+            plan.doc_hash = partial_md5(plan.dest)
+            if plan.doc_hash != old_hash and client is not None:
+                # The old row now names a book that no longer exists anywhere.
+                client.query("DELETE FROM documents WHERE doc_hash = ?", [old_hash])
+
+        ledger.conn.execute(
+            "UPDATE ingested SET doc_hash = ? WHERE doc_hash = ?", (plan.doc_hash, old_hash)
+        )
         ledger.conn.execute(
             """UPDATE ingested
                SET published_path = ?, title = ?, authors = ?, series = ?, series_index = ?

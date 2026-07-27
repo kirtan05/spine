@@ -32,7 +32,7 @@ from . import convert, spreads
 from . import publish as publishing
 from .identify import Identity, Kind, identify, published_suffix
 from .ledger import Entry, Ledger
-from .metadata import BookMeta, MetadataError, extract
+from .metadata import BookMeta, MetadataError, embed_epub_metadata, extract
 from .naming import target_path
 
 
@@ -140,9 +140,18 @@ def _prepare(
 ) -> tuple[Path, bool]:
     """Produce the exact bytes that will be published. Returns (payload, transformed)."""
     if not identity.is_comic:
-        # EPUBs, PDFs and MOBIs pass through untouched. Rewriting an EPUB to
-        # embed tags would change its identity for no gain — Kavita reads the OPF
-        # and the catalogue in D1 carries everything else.
+        # An EPUB whose series came from somewhere other than the file itself has
+        # to carry it internally, because Kavita's Book libraries read the OPF and
+        # ignore the folder path. Done here, before publication, so the hash is
+        # computed once on the final bytes and the immutability rule holds.
+        if identity.kind is Kind.EPUB and meta.series and meta.source != "ebook-meta":
+            staged = work / source.name
+            shutil.copy2(source, staged)
+            embed_epub_metadata(staged, meta)
+            return staged, True
+
+        # Otherwise pass through untouched: the file already agrees with the
+        # catalogue, and rewriting it would change its identity for nothing.
         return source, False
 
     cbz = work / f"{source.stem}.cbz"
