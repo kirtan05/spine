@@ -40,3 +40,7 @@ spine-*.sql
 *.cbr
 *.pdf
 takeout*/
+
+# Personal post drafts — kept locally, not part of the project
+blog-post.md
+linkedin-post.md
