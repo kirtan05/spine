@@ -122,6 +122,9 @@ order) is applied *into the EPUB* by `shelf reconcile`. That changes doc_hash on
 purpose; reconcile moves every hash-keyed row (`progress`, `sessions`,
 `book_status`, `book_stats`) to the new hash and verifies each write by reading it
 back — calibre silently cannot clear an EPUB 3 `belongs-to-collection`.
+`shelf ingest` applies the same catalogue before publishing, so a second edition
+of an owned book lands on the same path and is quarantined as a collision instead
+of being published beside it.
 
 **Tests must never reach production D1.** Unsetting `CF_*` is not enough:
 `get_client()` falls back to the wrangler OAuth session. `conftest.py` sets

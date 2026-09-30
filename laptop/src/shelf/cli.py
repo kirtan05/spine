@@ -57,13 +57,16 @@ def _ingest(paths: list[Path], config, ledger: Ledger) -> int:
     """
     explicit = bool(paths)
     total = {action: 0 for action in Action}
+    # The same curated catalogue `reconcile` applies, so new books arrive filed
+    # and a second edition of an owned book collides instead of duplicating.
+    catalogue = load_catalogue(MAPPINGS)
 
     for _ in range(20):
         batch = paths if explicit else inbox_files(config)
         if not batch:
             break
 
-        for outcome in ingest_paths(batch, config, ledger):
+        for outcome in ingest_paths(batch, config, ledger, catalogue):
             print(outcome.describe())
             total[outcome.action] += 1
         if explicit:

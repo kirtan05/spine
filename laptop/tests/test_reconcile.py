@@ -10,7 +10,7 @@ import pytest
 
 from shelf.ledger import Entry, Ledger
 from shelf.metadata import BookMeta, epub_metadata
-from shelf.pipeline import ingest_file
+from shelf.pipeline import Action, ingest_file
 from shelf.reconcile import (
     Catalogue,
     Problem,
@@ -270,3 +270,42 @@ def test_a_write_that_does_not_take_is_reported_and_still_recorded(workspace):
         assert [p.reason for p in problems if "did not take" in p.reason]
         entry = ledger.all_published()[0]
         assert entry.doc_hash == partial_md5(Path(entry.published_path))
+
+
+# --------------------------------------------------------------------------- #
+# The same catalogue, applied at ingest
+# --------------------------------------------------------------------------- #
+
+
+@needs_calibre
+class TestCatalogueAtIngest:
+    """Without this, a second edition of a book already in the library gets its
+    own path — its OPF lacks the series the first copy was given — and is
+    published as a duplicate. Found with a phone download of The Way of Kings."""
+
+    def test_a_new_book_is_published_with_canonical_metadata(self, workspace):
+        config = shelf_config()
+        catalogue = Catalogue(authors={"Wight, Will": "Will Wight"}, series=[CRADLE])
+        make_book(config.inbox / "soulsmith.epub", "Cradle 2: Soulsmith", "Wight, Will")
+        with Ledger(config.ledger) as ledger:
+            outcome = ingest_file(config.inbox / "soulsmith.epub", config, ledger, catalogue)
+        assert outcome.dest == config.library / "Will Wight/Cradle/Cradle 02 - Soulsmith.epub"
+        embedded = epub_metadata(outcome.dest)
+        assert embedded.title == "Soulsmith"
+        assert (embedded.series, embedded.series_index) == ("Cradle", 2.0)
+
+    def test_another_edition_of_an_owned_book_is_quarantined_not_duplicated(self, workspace):
+        config = shelf_config()
+        catalogue = Catalogue(authors={"Wight, Will": "Will Wight"}, series=[CRADLE])
+        with Ledger(config.ledger) as ledger:
+            make_book(config.inbox / "a.epub", "Cradle 2: Soulsmith", "Will Wight")
+            assert ingest_file(config.inbox / "a.epub", config, ledger, catalogue).dest
+            make_book(config.inbox / "b.epub", "Soulsmith (Cradle Book 2)", "Wight, Will")
+            outcome = ingest_file(config.inbox / "b.epub", config, ledger, catalogue)
+            assert outcome.action is Action.QUARANTINED
+            assert len(ledger.all_published()) == 1
+
+    def test_a_marketing_subtitle_is_dropped(self):
+        got = desired_metadata(entry(), BookMeta(title="The Understudy: A Novel",
+                                                 authors="David Nicholls"), Catalogue())
+        assert got.title == "The Understudy"

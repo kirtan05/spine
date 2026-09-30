@@ -34,6 +34,7 @@ from .identify import Identity, Kind, identify, published_suffix
 from .ledger import Entry, Ledger
 from .metadata import BookMeta, MetadataError, embed_epub_metadata, extract
 from .naming import target_path
+from .reconcile import Catalogue, Problem, desired_metadata, write_epub_metadata
 
 
 class Action(StrEnum):
@@ -56,7 +57,26 @@ class Outcome:
         return f"{self.action.value:<12} {self.source.name}{arrow}{detail}"
 
 
-def ingest_file(source: Path, config: ShelfConfig, ledger: Ledger) -> Outcome:
+def _apply_catalogue(
+    source: Path, meta: BookMeta, catalogue: Catalogue
+) -> BookMeta | str:
+    """The curated catalogue, as `shelf reconcile` applies it to the library.
+
+    Applied at ingest too, so a second edition of a book already in the library
+    resolves to the same destination and is caught as a collision instead of
+    being published beside it under a different path.
+    """
+    stub = Entry(content_sha256="", doc_hash="", source_name=source.name,
+                 published_path="", kind="epub", title=None, authors=None, series=None,
+                 series_index=None, metadata_source=meta.source, synced_to_d1=0,
+                 ingested_at=0)
+    desired = desired_metadata(stub, meta, catalogue)
+    return desired.reason if isinstance(desired, Problem) else desired
+
+
+def ingest_file(
+    source: Path, config: ShelfConfig, ledger: Ledger, catalogue: Catalogue | None = None
+) -> Outcome:
     # Another run may have taken this file between the directory scan and here.
     if not source.is_file():
         return Outcome(Action.SKIPPED, source, "taken by another run")
@@ -110,8 +130,15 @@ def ingest_file(source: Path, config: ShelfConfig, ledger: Ledger) -> Outcome:
             # in Kavita and leaves no signal that it happened.
             return _quarantine(source, source_hash, "no-usable-metadata", config, ledger)
 
+        embedded = meta
+        if catalogue is not None and identity.kind is Kind.EPUB:
+            curated = _apply_catalogue(source, meta, catalogue)
+            if isinstance(curated, str):
+                return _quarantine(source, source_hash, f"catalogue-{curated}", config, ledger)
+            meta = curated
+
         try:
-            payload, transformed = _prepare(readable, identity, meta, config, work)
+            payload, transformed = _prepare(readable, identity, meta, config, work, embedded)
         except (convert.ConversionError, spreads.SpreadsUnavailable) as err:
             return _quarantine(source, source_hash, f"conversion-failed-{err}", config, ledger)
         transformed = transformed or repaired
@@ -147,10 +174,19 @@ def ingest_file(source: Path, config: ShelfConfig, ledger: Ledger) -> Outcome:
 
 
 def _prepare(
-    source: Path, identity: Identity, meta: BookMeta, config: ShelfConfig, work: Path
+    source: Path, identity: Identity, meta: BookMeta, config: ShelfConfig, work: Path,
+    embedded: BookMeta | None = None,
 ) -> tuple[Path, bool]:
     """Produce the exact bytes that will be published. Returns (payload, transformed)."""
     if not identity.is_comic:
+        # The curated catalogue disagrees with what the file says: write it in
+        # now, before publication, so the book gets its final hash exactly once.
+        if identity.kind is Kind.EPUB and embedded is not None and _differs(embedded, meta):
+            staged = work / source.name
+            shutil.copy2(source, staged)
+            write_epub_metadata(staged, meta)
+            return staged, True
+
         # An EPUB whose series came from somewhere other than the file itself has
         # to carry it internally, because Kavita's Book libraries read the OPF and
         # ignore the folder path. Done here, before publication, so the hash is
@@ -230,12 +266,21 @@ def exclusive(config: ShelfConfig) -> Iterator[bool]:
         yield True
 
 
-def ingest_paths(paths: list[Path], config: ShelfConfig, ledger: Ledger) -> list[Outcome]:
+def ingest_paths(
+    paths: list[Path], config: ShelfConfig, ledger: Ledger, catalogue: Catalogue | None = None
+) -> list[Outcome]:
     outcomes: list[Outcome] = []
     for path in sorted(paths):
         if path.is_file() and not path.name.startswith("."):
-            outcomes.append(ingest_file(path, config, ledger))
+            outcomes.append(ingest_file(path, config, ledger, catalogue))
     return outcomes
+
+
+def _differs(a: BookMeta, b: BookMeta) -> bool:
+    def key(m: BookMeta) -> tuple:
+        return (m.title, m.authors, m.series,
+                None if m.series_index is None else float(m.series_index))
+    return key(a) != key(b)
 
 
 def prune_inbox(config: ShelfConfig) -> None:

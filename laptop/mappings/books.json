@@ -25,5 +25,11 @@
   "Tomorrow, and Tomorrow, and Tomorrow_ A novel.pdf": {
     "title": "Tomorrow, and Tomorrow, and Tomorrow",
     "_note": "Retail marketing suffix, not part of the title."
+  },
+  "Martin, George R_R_ - A Knight of the Seven Kingdoms -- Martin, George R_ R_ -- 2013 -- Bantam Books -- 9780345533487 -- 68f9e641d7f48fb5285b08b1058cf802 -- Anna’s Archive.epub": {
+    "title": "A Knight of the Seven Kingdoms",
+    "series": null,
+    "series_index": null,
+    "_note": "The OPF title carries the author ('Martin, George R.R. - ...') and tags this omnibus of all three Dunk and Egg novellas as book 1, which would collide with The Hedge Knight."
   }
 }

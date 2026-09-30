@@ -40,6 +40,9 @@ from .naming import primary_author, target_path
 HASH_KEYED_TABLES = ("progress", "sessions", "book_status", "book_stats")
 
 _ARTICLE = re.compile(r"^(the|a|an) ")
+#: A retail suffix, not part of the title: "The Maid: A Novel", "Tomorrow... a novel".
+#: Only the bare phrase — "A Crossfire Novel" names a series and is left alone.
+_MARKETING = re.compile(r"\s*[:\-–—]?\s*\ban?\s+novel\s*$", re.IGNORECASE)
 
 
 @dataclass
@@ -165,8 +168,12 @@ def desired_metadata(
             source=meta.source,
         )
 
+    title = meta.title
+    if title and "title" not in fix:
+        stripped = _MARKETING.sub("", title).strip()
+        title = stripped or title
     meta = BookMeta(
-        title=meta.title,
+        title=title,
         authors=canonical_authors(meta.authors, catalogue.authors),
         series=meta.series,
         series_index=meta.series_index,
