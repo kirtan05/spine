@@ -229,3 +229,21 @@ def test_the_cutoff_is_a_date_in_india_standard_time(monkeypatch):
 def test_no_cutoff_imports_everything(monkeypatch):
     monkeypatch.delenv("KOSTATS_SINCE", raising=False)
     assert stats_since() is None
+
+
+def test_a_symlinked_database_is_found_and_a_dangling_one_skipped(stats_root, tmp_path):
+    """Desktop Readest keeps statistics.db in its own data directory; the stats
+    root links to it. Before Readest first runs, that link points at nothing, and
+    the nightly import must not fall over because of it."""
+    real = make_stats_db(tmp_path / "readest-data" / READEST_FILENAME,
+                         [{"title": "A", "md5": MD5, "events": [(1, BASE, 60)]}])
+    (stats_root / "laptop-readest").mkdir()
+    (stats_root / "laptop-readest" / READEST_FILENAME).symlink_to(real)
+    (stats_root / "never-run").mkdir()
+    (stats_root / "never-run" / READEST_FILENAME).symlink_to(tmp_path / "missing.db")
+
+    found = find_databases(stats_root)
+    assert "laptop-readest" in found
+    assert "never-run" not in found
+    books, _ = read_device(found["laptop-readest"])
+    assert len(books) == 1

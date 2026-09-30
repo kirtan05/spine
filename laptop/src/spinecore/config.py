@@ -25,6 +25,8 @@ IST_OFFSET_SECONDS = 19_800
 
 def load_dotenv(path: Path | None = None) -> None:
     """Populate os.environ from a .env file, without overriding real env vars."""
+    if os.environ.get("SPINE_DOTENV", "").strip().lower() == "off":
+        return  # the test suite: personal settings must never leak into tests
     path = path or DOTENV
     if not path.is_file():
         return

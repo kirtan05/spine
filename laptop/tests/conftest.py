@@ -55,6 +55,9 @@ def no_production_d1(monkeypatch):
     """Every test, not just the workspace ones: get_client() would otherwise fall
     back to the wrangler OAuth session and write to the real database."""
     monkeypatch.setenv("SPINE_D1", "off")
+    # And never read laptop/.env: once its path was fixed, a real KOSTATS_SINCE
+    # there started changing what the importer tests saw.
+    monkeypatch.setenv("SPINE_DOTENV", "off")
 
 
 @pytest.fixture
