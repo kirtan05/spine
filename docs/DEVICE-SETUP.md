@@ -81,6 +81,120 @@ The server already accepts and stores the field, so nothing needs changing when 
 release does ship it. Setting `send_metadata = true` ahead of time is harmless and
 means it turns on by itself at upgrade.
 
+## 6. Get the library onto the device — Syncthing
+
+Kavita runs on the laptop, so it can only hand out a book while the laptop is
+awake and reachable — exactly when you are *not* reading. Syncthing instead pushes
+every published book onto the device ahead of time, so opening one needs no
+network at all. The same link carries KOReader's statistics database back.
+
+| Folder id | Laptop | Device | Carries |
+|---|---|---|---|
+| `spine-library` | `~/library`, **send only** | `Books/spine`, **receive only** | books → device |
+| `koreader-stats-<device>` | `~/spine-data/koreader-stats/<device>`, **receive only** | `koreader/settings`, **send only** | `statistics.sqlite3*` → laptop |
+
+Neither side can write into the other's source of truth. The laptop's stats folder
+has a `.stignore` that admits only `statistics.sqlite3` and its `-wal`/`-shm`
+sidecars, so the rest of KOReader's settings never leaves the device.
+
+**Do not turn on file versioning** for the stats folders. It keeps old copies under
+`.stversions/`; `kostats` skips hidden directories, but there is no reason to have
+them.
+
+### On the device
+
+1. Install **Syncthing-Fork** from F-Droid. It is not on the Play Store — Google
+   no longer allows the "all files access" permission Syncthing needs, and the
+   original Syncthing Android app is discontinued.
+2. Grant **All files access**, and set the app's battery usage to **Unrestricted**
+   or Android will kill it in the background.
+3. **Devices → +** and add the laptop's device ID
+   (`syncthing cli show system | grep myID` on the laptop).
+4. Send the device's own ID to the laptop (**⋮ → Show device ID**), then run the
+   laptop step below.
+5. Accept both folder shares when they appear:
+   - `spine library` → `/storage/emulated/0/Books/spine`, folder type
+     **Receive Only**
+   - `KOReader stats (<device>)` → `/storage/emulated/0/koreader/settings`,
+     folder type **Send Only**
+6. In KOReader: **File browser → long-press `Books/spine` → Set as HOME folder**.
+7. Give the device's library folder its own ignore file, so KOReader's `.sdr`
+   sidecars (highlights, notes, position) are never treated as local changes to a
+   receive-only folder — "Revert local changes" would otherwise delete them:
+
+   ```fish
+   printf '*.sdr\n' > /tmp/stignore
+   adb push /tmp/stignore /storage/emulated/0/Books/spine/.stignore
+   ```
+
+   No `(?d)` prefix, deliberately: a refile that removes a book's folder then
+   leaves the orphaned notes behind instead of deleting them.
+
+### On the laptop
+
+```fish
+set id <DEVICE-ID>; set name pixel     # the koreader-stats/ directory name
+syncthing cli config devices add --device-id $id --name $name
+syncthing cli config folders spine-library devices add --device-id $id
+syncthing cli config folders koreader-stats-$name devices add --device-id $id
+```
+
+`<name>` must match the directory `collect-stats.sh` already uses for that device
+(`pixel`, `tab-s11`). A new name starts a new device history.
+
+The stats folder for a new device has to exist first — copy the
+`koreader-stats-pixel` setup: `syncthing cli config folders add --id
+koreader-stats-$name --path ~/spine-data/koreader-stats/$name --type receiveonly`,
+plus the same `.stignore`.
+
+Books arrive as soon as both ends are online; the nightly `kostats-import` timer
+imports whatever statistics have arrived, plugged in or not.
+
+## 7. Readest — the primary reader
+
+Readest replaces KOReader for day-to-day reading. It speaks the same kosync
+protocol and identifies a book by the same partialMD5 (checked: its hash of
+`laptop/tests/fixtures/koreader-verified.epub` is KOReader's on-device value), so
+the server needs nothing. `device/android-install.sh` installs it.
+
+1. **Settings → Integrations → KOReader Sync**: server `https://kirtanjain.com`,
+   same username and password, **Checksum Method: File Content**, **Send Document
+   Metadata** on. Connect registers the account if it does not exist yet.
+2. **Library menu → Change Data Location → `/sdcard/0/Books`**. This moves
+   Readest's data — including `statistics.db` — to
+   `/storage/emulated/0/Books/Readest`, beside `Books/spine` — one folder for
+   everything reading-related, where Syncthing can read it.
+3. **Import → From Folder → `Books/spine`**, read in place, auto-import on. Books
+   are not copied; subfolders become groups.
+4. Accept the Syncthing share **Readest stats (<device>)** as
+   `/storage/emulated/0/Books/Readest`, type **Send Only**. The laptop side is
+   a receive-only folder at `~/spine-data/koreader-stats/<device>-readest` whose
+   `.stignore` admits only `statistics.db*`.
+
+Readest writes KOReader's statistics schema to `statistics.db`; `kostats` reads
+either file and records the reader as the session's `source` (`koreader` or
+`readest`). Keep each reader's database in its own directory — the directory name
+is the device id, and two readers under one id would merge their histories.
+
+## 8. Phone downloads → the library
+
+A book downloaded on the phone should end up in the library without being moved
+by hand. The phone's `Download` folder is shared **send-only** to the laptop's
+`~/inbox/phone` (**receive-only**), which the ingest path unit also watches.
+
+The laptop side's `.stignore` admits only `*.epub`, `*.cbz` and `*.cbr` at the top
+level. **PDFs are excluded deliberately**: most PDFs in Downloads are not books,
+and one that reached the inbox would be published as one. Everything else in
+Downloads is never transferred.
+
+Send-only means nothing on the laptop can delete from the phone: the pipeline
+removes the inbox copy after publishing, and the phone keeps its download.
+
+On the device, accept the share **Phone downloads → spine inbox** as
+`/storage/emulated/0/Download`, type **Send Only**. On the laptop the folder is
+`phone-inbox-<device>`; see the `syncthing cli` commands in section 6 for adding
+one for another device.
+
 ---
 
 ## Verify it actually works

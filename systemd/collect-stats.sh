@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Mirror each device's KOReader statistics database to the laptop, then import.
 #
-# The PRD suggests Syncthing for this. adb-over-wifi is the same idea with less
-# setup, and it fails in a more obvious way: if a device is not reachable this
-# exits having done nothing, rather than silently serving a stale copy.
+# Two transports feed koreader-stats/<device>/. Syncthing is the standing one: the
+# device shares its KOReader settings/ send-only and the database arrives on its
+# own. adb is the fallback for a device without Syncthing, and is skipped for any
+# directory Syncthing owns (it has a .stfolder marker) — a second writer into a
+# receive-only folder shows up as a local change and blocks the next real update.
 #
 # Devices that are simply switched off are not an error. Reading history is
 # append-only per device and session ids are deterministic, so a device that
@@ -31,6 +33,10 @@ for serial in $(adb devices | awk 'NR>1 && $2=="device" {print $1}'); do
     model="$(adb -s "$serial" shell getprop ro.product.model 2>/dev/null | tr -d '\r')"
     [ -n "$model" ] || continue
     dir="$STATS_ROOT/$(device_dir "$model")"
+    if [ -e "$dir/.stfolder" ]; then
+        echo "skipped $model (synced by Syncthing)"
+        continue
+    fi
     mkdir -p "$dir"
 
     # Copy to a readable path first: the KOReader settings directory is not
@@ -45,9 +51,12 @@ for serial in $(adb devices | awk 'NR>1 && $2=="device" {print $1}'); do
     adb -s "$serial" shell 'rm -f /sdcard/.spine-stats.db' 2>/dev/null
 done
 
-if [ "$pulled" -eq 0 ]; then
-    echo "no devices reachable; nothing to import"
+# Import whenever any database is present, not only after a pull: Syncthing may
+# have delivered one without adb ever seeing the device. Re-importing is a no-op.
+if ! find "$STATS_ROOT" \( -name statistics.sqlite3 -o -name statistics.db \) -not -path '*/.*' | grep -q .; then
+    echo "no statistics databases yet; nothing to import"
     exit 0
 fi
+echo "pulled $pulled over adb; importing everything present"
 
 cd "$REPO/laptop" && exec uv run kostats import

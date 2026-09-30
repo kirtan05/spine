@@ -12,6 +12,9 @@ Description=Watch the spine inbox for new files
 # converges instead: the run removes files, that counts as one more change, the
 # next pass finds nothing and stops.
 PathChanged=%h/inbox
+# The phone's downloads arrive through Syncthing into this subfolder. inotify is
+# not recursive, so a file finishing there is invisible to the line above.
+PathChanged=%h/inbox/phone
 
 [Install]
 WantedBy=default.target

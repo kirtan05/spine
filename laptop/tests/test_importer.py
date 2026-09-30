@@ -7,12 +7,21 @@ silently finds nothing.
 
 from __future__ import annotations
 
+import shutil
 import sqlite3
 from pathlib import Path
 
 import pytest
 
-from kostats.importer import STATS_FILENAME, find_databases, koreader_hashes, read_device
+from kostats.importer import (
+    READEST_FILENAME,
+    STATS_FILENAME,
+    find_databases,
+    import_device,
+    koreader_hashes,
+    read_device,
+    source_for,
+)
 
 KOREADER_SCHEMA = """
 CREATE TABLE book (
@@ -87,6 +96,60 @@ def test_discovers_one_database_per_device(stats_root):
     found = find_databases(stats_root)
     assert set(found) == {"pixel", "tab-s11"}
     assert found["pixel"].name == STATS_FILENAME
+
+
+def test_ignores_hidden_directories(stats_root):
+    # Syncthing's file versioning keeps old copies under .stversions/ inside the
+    # synced folder. Read as a device, it would fork a phantom ".stversions".
+    versions = stats_root / "pixel" / ".stversions"
+    versions.mkdir()
+    shutil.copy2(stats_root / "pixel" / STATS_FILENAME, versions / STATS_FILENAME)
+
+    assert set(find_databases(stats_root)) == {"pixel", "tab-s11"}
+
+
+def test_discovers_a_readest_database_as_its_own_device(stats_root):
+    # Readest writes KOReader's schema, keyed by the same partialMD5, but names
+    # the file statistics.db.
+    make_stats_db(
+        stats_root / "pixel-readest" / READEST_FILENAME,
+        [{"title": "A", "md5": MD5, "events": [(1, BASE, 60)]}],
+    )
+    found = find_databases(stats_root)
+    assert set(found) == {"pixel", "tab-s11", "pixel-readest"}
+    assert source_for(found["pixel-readest"]) == "readest"
+    assert source_for(found["pixel"]) == "koreader"
+
+
+def test_two_databases_in_one_directory_is_an_error(stats_root):
+    # The directory name is the device id; two readers sharing one would merge
+    # their histories under a single device.
+    make_stats_db(stats_root / "pixel" / READEST_FILENAME, [])
+    with pytest.raises(ValueError, match="pixel"):
+        find_databases(stats_root)
+
+
+class RecordingClient:
+    def __init__(self):
+        self.params: list[list] = []
+
+    def query(self, sql, params=None):
+        self.params.append(params)
+        return []
+
+
+def test_sessions_are_labelled_with_the_reader_that_measured_them(tmp_path):
+    events = [{"title": "A", "md5": MD5, "events": [(1, BASE, 60)]}]
+    ko = make_stats_db(tmp_path / "pixel" / STATS_FILENAME, events)
+    rd = make_stats_db(tmp_path / "pixel-readest" / READEST_FILENAME, events)
+
+    ko_client, rd_client = RecordingClient(), RecordingClient()
+    assert import_device("pixel", ko, ko_client).source == "koreader"
+    assert import_device("pixel-readest", rd, rd_client).source == "readest"
+
+    (ko_row,), (rd_row,) = ko_client.params, rd_client.params
+    assert ko_row[9] == "koreader" and rd_row[9] == "readest"
+    assert ko_row[0] != rd_row[0]  # session ids never collide across readers
 
 
 def test_groups_page_events_into_sessions(stats_root):

@@ -29,11 +29,13 @@ gitignored. Run it after any `wrangler.jsonc` change or `Env` will be stale.
 ### Laptop (`laptop/`)
 
 ```fish
-uv run pytest                         # 71 tests
+uv run pytest                         # 167 tests; SPINE_D1=off is forced for all of them
 uv run pytest tests/test_pipeline.py::TestIdempotency -v
 uv run ruff check src tests
 uv run shelf ingest                   # drain ~/inbox
 uv run shelf status
+uv run shelf reconcile                # dry run: metadata, paths, catalogue vs mappings/
+uv run shelf reconcile --apply        # rewrite + move + migrate hash-keyed rows
 uv run kostats import --dry-run
 uv run kostats verify-md5             # port vs KOReader's own hashes
 ```
@@ -107,6 +109,28 @@ already correct and forward-compatible — leave it.
 skips the pull, so nothing syncs and nothing errors. If a device "isn't syncing"
 and the server has *zero* rows, check that before anything else — a device that
 pushes and is rejected leaves traces, one that never pushes leaves none.
+
+**Google Takeout names most EPUBs `.pdf`, and `ebook-meta` picks its reader by
+extension.** Read under that name it runs the PDF reader, fails, and returns the
+filename as the title and "Unknown" as the author. `epub_metadata` reads anything
+not called `.epub` through a `.epub`-named symlink. Before that fix, 67 books sat
+under Unknown Author.
+
+**Readest groups by *embedded* metadata, not folders.** So `mappings/`
+(`authors.json` aliases, `books.json` per-book fixes, every other file a series
+order) is applied *into the EPUB* by `shelf reconcile`. That changes doc_hash on
+purpose; reconcile moves every hash-keyed row (`progress`, `sessions`,
+`book_status`, `book_stats`) to the new hash and verifies each write by reading it
+back — calibre silently cannot clear an EPUB 3 `belongs-to-collection`.
+
+**Tests must never reach production D1.** Unsetting `CF_*` is not enough:
+`get_client()` falls back to the wrangler OAuth session. `conftest.py` sets
+`SPINE_D1=off` for every test. Before it did, refile tests left fake "Mort" and
+"Small Gods" rows in the real `documents` table.
+
+**`ebook-meta` must run through `spinecore.process.run`**, never a bare
+subprocess: under `uv run` its `#!/usr/bin/env python3` resolves to the venv's
+3.11 interpreter, and calibre 9 needs 3.14 syntax.
 
 **`kostats` snapshots the WAL sidecars** before reading `statistics.sqlite3`.
 Opening a synced copy read-only without its `-wal` returns data as of the last

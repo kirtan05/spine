@@ -10,7 +10,13 @@ from shelf.ledger import Ledger
 from spinecore.config import shelf_config
 from spinecore.partial_md5 import partial_md5
 
-from .importer import STATS_FILENAME, find_databases, import_all, koreader_hashes
+from .importer import (
+    READEST_FILENAME,
+    STATS_FILENAME,
+    find_databases,
+    import_all,
+    koreader_hashes,
+)
 from .sessions import DEFAULT_GAP_SECONDS
 
 
@@ -37,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "devices":
         databases = find_databases(root)
         if not databases:
-            print(f"no {STATS_FILENAME} under {root}")
+            print(f"no {STATS_FILENAME} or {READEST_FILENAME} under {root}")
             print("see docs/DATA-COLLECTION.md section 5")
             return 1
         for device_id, path in databases.items():
@@ -57,7 +63,8 @@ def main(argv: list[str] | None = None) -> int:
                 + (f"  ({result.skipped_no_md5} skipped: no md5)" if result.skipped_no_md5 else "")
             )
         total = sum(r.sessions for r in results)
-        print(f"\n{total} sessions, source=koreader confidence=exact ({note})")
+        sources = ",".join(sorted({r.source for r in results}))
+        print(f"\n{total} sessions, source={sources} confidence=exact ({note})")
         return 0
 
     if args.command == "verify-md5":

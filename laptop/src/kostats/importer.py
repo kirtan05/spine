@@ -21,8 +21,17 @@ from spinecore.d1 import INSERT_SESSION, D1Client, get_client
 
 from .sessions import DEFAULT_GAP_SECONDS, PageEvent, Session, group_sessions, session_id
 
-SOURCE = "koreader"
 STATS_FILENAME = "statistics.sqlite3"
+READEST_FILENAME = "statistics.db"
+
+# Readest writes KOReader's statistics schema, keyed by the same partialMD5, under
+# a different filename. The filename is therefore the only thing that says which
+# reader measured a session, and it is recorded as the session's source.
+SOURCES = {STATS_FILENAME: "koreader", READEST_FILENAME: "readest"}
+
+
+def source_for(path: Path) -> str:
+    return SOURCES[path.name]
 
 
 @dataclass
@@ -39,6 +48,7 @@ class DeviceImport:
     sessions: int
     seconds: int
     skipped_no_md5: int
+    source: str = "koreader"
 
 
 def find_databases(root: Path) -> dict[str, Path]:
@@ -46,13 +56,28 @@ def find_databases(root: Path) -> dict[str, Path]:
 
     The directory name *is* the device id. Renaming one later forks that device's
     session history, because ids are derived from it.
+
+    Hidden directories are skipped: Syncthing keeps old versions under
+    ``.stversions/``, which would otherwise be imported as a device of that name.
+
+    One directory holding both a KOReader and a Readest database is refused, since
+    it would merge two readers' histories under one device id.
     """
     found: dict[str, Path] = {}
     if not root.is_dir():
         return found
-    for candidate in sorted(root.rglob(STATS_FILENAME)):
-        device_id = candidate.parent.name
-        if device_id and device_id != root.name:
+    for filename in SOURCES:
+        for candidate in sorted(root.rglob(filename)):
+            if any(part.startswith(".") for part in candidate.relative_to(root).parts):
+                continue
+            device_id = candidate.parent.name
+            if not device_id or device_id == root.name:
+                continue
+            if device_id in found:
+                raise ValueError(
+                    f"{candidate.parent} holds more than one statistics database; "
+                    "give each reader its own directory"
+                )
             found[device_id] = candidate
     return found
 
@@ -121,6 +146,7 @@ def import_device(
     gap_seconds: int = DEFAULT_GAP_SECONDS,
 ) -> DeviceImport:
     books, skipped = read_device(path, gap_seconds)
+    source = source_for(path)
     now = int(time.time())
     total_sessions = 0
     total_seconds = 0
@@ -134,7 +160,7 @@ def import_device(
             client.query(
                 INSERT_SESSION,
                 [
-                    session_id(SOURCE, device_id, book.md5, session.started_at),
+                    session_id(source, device_id, book.md5, session.started_at),
                     book.md5,
                     book.title,
                     book.authors,
@@ -143,7 +169,7 @@ def import_device(
                     session.ended_at,
                     session.duration_s,
                     session.pages,
-                    SOURCE,
+                    source,
                     # Measured on-device, page by page. The only rows in the
                     # system that get to claim this.
                     "exact",
@@ -158,6 +184,7 @@ def import_device(
         sessions=total_sessions,
         seconds=total_seconds,
         skipped_no_md5=skipped,
+        source=source,
     )
 
 
@@ -166,7 +193,7 @@ def import_all(
 ) -> tuple[list[DeviceImport], str]:
     databases = find_databases(root)
     if not databases:
-        return [], f"no {STATS_FILENAME} found under {root}"
+        return [], f"no {STATS_FILENAME} or {READEST_FILENAME} found under {root}"
 
     client: D1Client | None = None
     note = "dry run — nothing written"

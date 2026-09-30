@@ -20,7 +20,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now spine-backup.timer
 echo "enabled spine-backup.timer"
 
-mkdir -p "$HOME/inbox"
+mkdir -p "$HOME/inbox/phone"
 systemctl --user enable --now shelf-ingest.path
 echo "enabled shelf-ingest.path (watching $HOME/inbox)"
 
