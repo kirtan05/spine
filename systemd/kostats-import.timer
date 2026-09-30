@@ -4,9 +4,12 @@ Description=Daily import of measured reading time from KOReader devices
 [Timer]
 # Just after the nightly rollup would have run, so a day's reading is imported
 # before the following night's aggregation rather than a day late.
-OnCalendar=*-*-* 02:00:00
+# Before the Worker's nightly rollup (cron 19:30 UTC = 01:00 IST), which rebuilds
+# the page's totals from `sessions`. Run after it, each night's reading waited a
+# whole extra day to appear.
+OnCalendar=*-*-* 00:30:00
 Persistent=true
-RandomizedDelaySec=20m
+RandomizedDelaySec=15m
 
 [Install]
 WantedBy=timers.target
