@@ -50,6 +50,13 @@ def make_epub(path: Path, title: str = "Gardens of the Moon") -> Path:
     return path
 
 
+@pytest.fixture(autouse=True)
+def no_production_d1(monkeypatch):
+    """Every test, not just the workspace ones: get_client() would otherwise fall
+    back to the wrangler OAuth session and write to the real database."""
+    monkeypatch.setenv("SPINE_D1", "off")
+
+
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
     """An isolated inbox/library/quarantine/archive tree with matching config."""

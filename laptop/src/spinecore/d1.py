@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -212,7 +213,14 @@ def wrangler_available() -> bool:
 
 
 def get_client() -> tuple[D1Client | None, str]:
-    """Return (client, description). Client is None when neither transport works."""
+    """Return (client, description). Client is None when neither transport works.
+
+    ``SPINE_D1=off`` disables both transports. The test suite sets it globally:
+    removing the CF_* variables alone still leaves the wrangler OAuth fallback,
+    which reaches the real database.
+    """
+    if os.environ.get("SPINE_D1", "").strip().lower() in {"off", "0", "false"}:
+        return None, "D1 disabled (SPINE_D1=off)"
     config = cloudflare_config()
     if config is not None:
         return HttpD1Client(config), "D1 REST API (scoped token)"

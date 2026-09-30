@@ -7,9 +7,11 @@ is most of a library.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
-from spinecore.d1 import D1Error, _rows_from_wrangler, inline_params, sql_literal
+from spinecore.d1 import D1Error, _rows_from_wrangler, get_client, inline_params, sql_literal
 
 
 class TestSqlLiteral:
@@ -93,3 +95,21 @@ class TestWranglerOutputParsing:
     def test_unparseable_json_raises(self):
         with pytest.raises(D1Error):
             _rows_from_wrangler("[{not json")
+
+
+class TestTestsNeverReachProduction:
+    """Deleting the CF_* variables is not enough: get_client() then falls back to
+    the wrangler OAuth session, which writes to the real database. The refile tests
+    did exactly that — two fixture books, "Mort" and "Small Gods" as .cbz, sat in
+    production `documents` until they were found by hand.
+    """
+
+    def test_the_kill_switch_disables_every_transport(self, monkeypatch):
+        monkeypatch.setenv("SPINE_D1", "off")
+        client, note = get_client()
+        assert client is None
+        assert "SPINE_D1" in note
+
+    def test_the_whole_suite_runs_with_it_set(self):
+        # Set by conftest for every test, not only those using the workspace fixture.
+        assert os.environ.get("SPINE_D1") == "off"
