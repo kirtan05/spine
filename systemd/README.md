@@ -12,7 +12,23 @@ sudo loginctl enable-linger $USER   # so timers run while logged out
 | Unit | Does |
 |---|---|
 | `spine-backup.timer` → `.service` | Weekly `wrangler d1 export --remote`, gzipped into `~/spine-data/backups`, keeping the last 12 |
-| `shelf-ingest.path` → `.service` | Runs `shelf ingest` when `~/inbox` changes |
+| `shelf-ingest.path` → `.service` | Runs `shelf ingest` when `~/inbox` or `~/inbox/phone` changes (inotify is not recursive, so the phone's subfolder is watched explicitly) |
+| `kostats-import.timer` → `.service` | `collect-stats.sh` at 00:30: imports every reader's statistics database into D1 |
+
+## Why the stats import runs at 00:30
+
+The Worker's cron rebuilds the page's totals from `sessions` at 01:00 IST. The
+import used to run at 02:00, after it, so every night's reading waited an extra day
+to appear. `RandomizedDelaySec` is capped at 15 minutes to keep it ahead.
+
+`collect-stats.sh` imports whatever Syncthing has delivered — the laptop does not
+need to see the device. Its adb pull is only a fallback for a KOReader device
+without Syncthing, and it skips:
+
+- directories Syncthing owns (a `.stfolder` marker): a second writer into a
+  receive-only folder shows up as a local change and blocks the next real update;
+- devices archived under `~/spine-data/koreader-stats-retired/`: uninstalling
+  KOReader leaves `/sdcard/koreader` behind, and the fallback would import it again.
 
 ## Why `Persistent=true`
 
@@ -37,6 +53,7 @@ systemctl --user list-timers spine-backup.timer
 systemctl --user start spine-backup.service     # run it now
 journalctl --user -u spine-backup.service -n 40
 journalctl --user -u shelf-ingest.service -n 40
+journalctl --user -u kostats-import.service -n 40
 
 ls -la ~/spine-data/backups/
 ```
