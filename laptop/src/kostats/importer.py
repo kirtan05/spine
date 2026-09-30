@@ -144,6 +144,7 @@ def import_device(
     path: Path,
     client: D1Client | None,
     gap_seconds: int = DEFAULT_GAP_SECONDS,
+    since: int | None = None,
 ) -> DeviceImport:
     books, skipped = read_device(path, gap_seconds)
     source = source_for(path)
@@ -153,6 +154,8 @@ def import_device(
 
     for book, sessions in books:
         for session in sessions:
+            if since is not None and session.started_at < since:
+                continue  # before the KOSTATS_SINCE fresh start
             total_sessions += 1
             total_seconds += session.duration_s
             if client is None:
@@ -189,7 +192,8 @@ def import_device(
 
 
 def import_all(
-    root: Path, gap_seconds: int = DEFAULT_GAP_SECONDS, dry_run: bool = False
+    root: Path, gap_seconds: int = DEFAULT_GAP_SECONDS, dry_run: bool = False,
+    since: int | None = None,
 ) -> tuple[list[DeviceImport], str]:
     databases = find_databases(root)
     if not databases:
@@ -203,7 +207,7 @@ def import_all(
             return [], note
 
     return [
-        import_device(device_id, path, client, gap_seconds)
+        import_device(device_id, path, client, gap_seconds, since)
         for device_id, path in databases.items()
     ], note
 

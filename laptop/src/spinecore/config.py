@@ -8,16 +8,24 @@ on the laptop and nowhere else.
 
 from __future__ import annotations
 
+import datetime
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_DATA_DIR = Path.home() / "spine-data"
 
+#: laptop/.env. This file is laptop/src/spinecore/config.py, so that is
+#: parents[2]; it was once parents[3], the repo root, where no .env exists.
+DOTENV = Path(__file__).resolve().parents[2] / ".env"
+
+#: Asia/Kolkata has no DST, so a fixed offset is exact (see worker/src/time.ts).
+IST_OFFSET_SECONDS = 19_800
+
 
 def load_dotenv(path: Path | None = None) -> None:
     """Populate os.environ from a .env file, without overriding real env vars."""
-    path = path or Path(__file__).resolve().parents[3] / ".env"
+    path = path or DOTENV
     if not path.is_file():
         return
     for raw in path.read_text(encoding="utf-8").splitlines():
@@ -93,3 +101,19 @@ def cloudflare_config() -> CloudflareConfig | None:
     if not (account and database and token):
         return None
     return CloudflareConfig(account_id=account, database_id=database, api_token=token)
+
+
+def stats_since() -> int | None:
+    """``KOSTATS_SINCE`` (YYYY-MM-DD) as the unix time of that midnight in IST.
+
+    Sessions that started earlier are not imported. Devices keep their history
+    forever and the nightly import is idempotent, so a fresh start has to be a
+    cutoff at the source — deleting rows from D1 alone is undone overnight.
+    """
+    load_dotenv()
+    value = os.environ.get("KOSTATS_SINCE", "").strip()
+    if not value:
+        return None
+    day = datetime.date.fromisoformat(value)
+    midnight_utc = datetime.datetime(day.year, day.month, day.day, tzinfo=datetime.UTC)
+    return int(midnight_utc.timestamp()) - IST_OFFSET_SECONDS

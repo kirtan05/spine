@@ -135,6 +135,12 @@ of being published beside it.
 subprocess: under `uv run` its `#!/usr/bin/env python3` resolves to the venv's
 3.11 interpreter, and calibre 9 needs 3.14 syntax.
 
+**`KOSTATS_SINCE` (in `laptop/.env`) is the only way to reset reading stats.**
+Devices keep their statistics forever and session ids are deterministic, so rows
+deleted from D1 come back on the next nightly import. The cutoff is a date,
+interpreted as IST midnight. (`laptop/.env` itself was never read until
+`spinecore.config.DOTENV` was fixed — it pointed at the repo root.)
+
 **`kostats` snapshots the WAL sidecars** before reading `statistics.sqlite3`.
 Opening a synced copy read-only without its `-wal` returns data as of the last
 checkpoint — a successful-looking import quietly missing the newest reading.

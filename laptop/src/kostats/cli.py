@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from shelf.ledger import Ledger
-from spinecore.config import shelf_config
+from spinecore.config import shelf_config, stats_since
 from spinecore.partial_md5 import partial_md5
 
 from .importer import (
@@ -51,7 +51,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "import":
-        results, note = import_all(root, gap_seconds=args.gap, dry_run=args.dry_run)
+        results, note = import_all(root, gap_seconds=args.gap, dry_run=args.dry_run,
+                                   since=stats_since())
         if not results:
             print(note)
             return 1

@@ -22,6 +22,7 @@ from kostats.importer import (
     read_device,
     source_for,
 )
+from spinecore.config import stats_since
 
 KOREADER_SCHEMA = """
 CREATE TABLE book (
@@ -204,3 +205,27 @@ def test_reads_a_wal_mode_database_without_losing_recent_rows(tmp_path):
 
 def test_missing_root_is_reported_not_crashed(tmp_path):
     assert find_databases(tmp_path / "nope") == {}
+
+
+
+def test_sessions_before_the_cutoff_are_never_imported(stats_root):
+    """A fresh start: the devices' databases keep their history forever and the
+    nightly import is idempotent, so wiping D1 alone would be undone overnight.
+    The cutoff makes "count from today" stick."""
+    client = RecordingClient()
+    # The fixture has one session at BASE and one a day later; cut between them.
+    result = import_device("pixel", stats_root / "pixel" / STATS_FILENAME, client,
+                           since=BASE + 3_600)
+    assert result.sessions == 1
+    assert [row[5] for row in client.params] == [BASE + 90_000]
+
+
+def test_the_cutoff_is_a_date_in_india_standard_time(monkeypatch):
+    monkeypatch.setenv("KOSTATS_SINCE", "2026-10-01")
+    # Midnight IST is 18:30 UTC the day before.
+    assert stats_since() == 1_790_793_000
+
+
+def test_no_cutoff_imports_everything(monkeypatch):
+    monkeypatch.delenv("KOSTATS_SINCE", raising=False)
+    assert stats_since() is None

@@ -8,6 +8,7 @@ is most of a library.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -113,3 +114,13 @@ class TestTestsNeverReachProduction:
     def test_the_whole_suite_runs_with_it_set(self):
         # Set by conftest for every test, not only those using the workspace fixture.
         assert os.environ.get("SPINE_D1") == "off"
+
+
+
+def test_dotenv_defaults_to_the_laptop_directory():
+    """It pointed one directory too high (the repo root, where no .env exists),
+    so laptop/.env was silently never read."""
+    from spinecore import config
+
+    assert Path(config.__file__).resolve().parents[2] / ".env" == config.DOTENV
+    assert config.DOTENV.parent.name == "laptop"
