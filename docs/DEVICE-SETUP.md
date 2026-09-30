@@ -1,4 +1,44 @@
-# KOReader device setup
+# Device setup
+
+## New Android device — one command
+
+```fish
+device/setup-android.sh tab-s11        # any short, stable name
+```
+
+Connect the device over adb first (USB, or Developer options → Wireless
+debugging). The script installs Readest and Syncthing-Fork, grants their
+permissions, pairs the device with the laptop (scan the QR it prints), creates the
+laptop side of every share, and then asks for the few taps only the device can
+make — checking each one before moving on. It is safe to re-run; on an already
+configured device it finishes without asking for anything.
+
+Every device shares the same library (`spine-library`) and the same downloads
+inbox (`phone-inbox-pixel` → `~/inbox/phone`); only reading stats are per device
+(`readest-stats-<name>` → `~/spine-data/koreader-stats/<name>-readest`), because
+the directory name is the stats device id.
+
+## Readest on the laptop
+
+```fish
+sudo pacman -S readest
+```
+
+- **KOReader Sync**: same server and credentials, Device Name `laptop`.
+- **Import from Folder** → `~/library`, read in place, import all, auto-import.
+- Leave its data location at the default. Its statistics live in
+  `~/.local/share/com.bilingify.readest/Readest/`, and
+  `~/spine-data/koreader-stats/laptop-readest/` holds symlinks to them, so the
+  nightly import counts the laptop as its own device.
+
+A reader retired from a device leaves its files behind (uninstalling KOReader does
+not remove `/sdcard/koreader`). Archive its stats under
+`~/spine-data/koreader-stats-retired/<device>/` and `collect-stats.sh` will never
+pull them back.
+
+---
+
+## KOReader, by hand (the original, detailed notes)
 
 Three devices: Pixel, Tab S11, tablet 2. Do all of this on **every** device, and
 do it **before downloading any books**.

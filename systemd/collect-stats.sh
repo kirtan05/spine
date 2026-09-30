@@ -33,6 +33,13 @@ for serial in $(adb devices | awk 'NR>1 && $2=="device" {print $1}'); do
     model="$(adb -s "$serial" shell getprop ro.product.model 2>/dev/null | tr -d '\r')"
     [ -n "$model" ] || continue
     dir="$STATS_ROOT/$(device_dir "$model")"
+    # A reader retired from a device leaves its files behind on it (uninstalling
+    # KOReader does not remove /sdcard/koreader). Its data is archived under
+    # koreader-stats-retired/; never pull it back into the import root.
+    if [ -e "$STATS_ROOT-retired/$(device_dir "$model")" ]; then
+        echo "skipped $model (retired)"
+        continue
+    fi
     if [ -e "$dir/.stfolder" ]; then
         echo "skipped $model (synced by Syncthing)"
         continue
