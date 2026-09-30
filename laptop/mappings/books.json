@@ -1,0 +1,29 @@
+{
+  "Jim Butcher.epub": {
+    "title": "First Lord's Fury",
+    "authors": "Jim Butcher",
+    "_note": "The source OPF has title and author swapped: dc:title is 'Jim Butcher', dc:creator is 'Codex Alera 06 - First Lord's Fury'."
+  },
+  "The Wisdom of Crowds.epub": {
+    "authors": "Joe Abercrombie",
+    "_note": "The source OPF has no dc:creator at all."
+  },
+  "Jordan, Robert - The Wheel of Time Omnibus [Complete Series In 1 Book].epub": {
+    "title": "The Wheel of Time: The Complete Series",
+    "series": null,
+    "series_index": null,
+    "_note": "An omnibus of all fourteen books plus the prequel; the source tags it 'The Wheel of Time #1', which would sort it as book one of a series it contains entirely."
+  },
+  "The Maid.pdf": {
+    "title": "The Maid",
+    "_note": "Retail marketing suffix, not part of the title."
+  },
+  "The Secret of Secrets.pdf": {
+    "title": "The Secret of Secrets",
+    "_note": "Retail marketing suffix, not part of the title."
+  },
+  "Tomorrow, and Tomorrow, and Tomorrow_ A novel.pdf": {
+    "title": "Tomorrow, and Tomorrow, and Tomorrow",
+    "_note": "Retail marketing suffix, not part of the title."
+  }
+}

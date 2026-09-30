@@ -22,7 +22,13 @@ from .pipeline import (
     retry_quarantine,
     sync_catalogue,
 )
+from .reconcile import apply_plans as reconcile_apply
+from .reconcile import build_plan as reconcile_plan
+from .reconcile import load_catalogue
 from .refile import apply_plan, build_plan, load_mapping
+
+#: Curated catalogue: authors.json, books.json, and one file per group of series.
+MAPPINGS = Path(__file__).resolve().parents[2] / "mappings"
 
 
 def _already_read(doc_hashes: set[str]) -> set[str]:
@@ -94,6 +100,14 @@ def main(argv: list[str] | None = None) -> int:
     ref.add_argument("--apply", action="store_true", help="actually move files (default: dry run)")
     ref.add_argument("--embed", action="store_true",
                      help="also write the series into EPUBs (changes doc_hash; refuses if read)")
+    rec = sub.add_parser(
+        "reconcile",
+        help="make every EPUB's embedded metadata, path and catalogue row match mappings/",
+    )
+    rec.add_argument("--mappings", type=Path, default=MAPPINGS)
+    rec.add_argument("--apply", action="store_true",
+                     help="rewrite, move and migrate (default: dry run). Changes doc_hash of "
+                          "rewritten books; their progress and sessions are moved with them")
     sub.add_parser("retry-quarantine", help="return quarantined files to the inbox and re-try")
     sub.add_parser("status", help="ledger counts and configured paths")
 
@@ -153,6 +167,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n{moved} moved, {len(plans) - moved} already in place, {len(failures)} failed")
             return 1 if failures else 0
 
+        if args.command == "reconcile":
+            return _reconcile(args, config, ledger)
+
         if args.command == "sync-catalogue":
             synced, pending, note = sync_catalogue(ledger)
             print(f"{synced} synced, {pending} pending ({note})")
@@ -179,6 +196,38 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     return 0
+
+
+def _reconcile(args, config, ledger: Ledger) -> int:
+    from spinecore.d1 import get_client
+
+    plans, problems = reconcile_plan(ledger, config, load_catalogue(args.mappings))
+    changing = [p for p in plans if p.changes]
+    for plan in changing:
+        what = "rewrite+move" if plan.rewrites and plan.moves else (
+            "rewrite" if plan.rewrites else "move")
+        rel = plan.dest.relative_to(config.library)
+        print(f"  {what:<12} {rel}")
+    for problem in problems:
+        print(f"  SKIP         {problem.key}: {problem.reason}")
+
+    rewrites = sum(p.rewrites for p in changing)
+    summary = (f"{len(changing)} to change ({rewrites} rewritten, so new doc_hash), "
+               f"{len(plans) - len(changing)} already right, {len(problems)} skipped")
+    if not args.apply:
+        print(f"\n{summary} (dry run; pass --apply)")
+        return 0
+
+    client, note = get_client()
+    if client is None and rewrites:
+        # Without D1 the old hashes' progress and sessions could not be moved.
+        print(f"\nREFUSED: {note}. Rewriting without D1 would orphan reading history.")
+        return 1
+    done, failures = reconcile_apply(plans, ledger, client)
+    for failure in failures:
+        print(f"  FAILED       {failure.key}: {failure.reason}")
+    print(f"\n{done} reconciled, {len(failures)} failed ({note})")
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

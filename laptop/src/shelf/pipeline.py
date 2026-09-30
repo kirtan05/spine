@@ -88,22 +88,33 @@ def ingest_file(source: Path, config: ShelfConfig, ledger: Ledger) -> Outcome:
         reason = f"unrecognised-format-{identity.detail}"
         return _quarantine(source, source_hash, reason, config, ledger)
 
-    try:
-        meta = extract(source, identity)
-    except MetadataError as err:
-        return _quarantine(source, source_hash, f"metadata-error-{err}", config, ledger)
-
-    if not meta.is_usable:
-        # Never guessed at. A wrong series assignment silently merges two series
-        # in Kavita and leaves no signal that it happened.
-        return _quarantine(source, source_hash, "no-usable-metadata", config, ledger)
-
     with tempfile.TemporaryDirectory(prefix="shelf-work-") as tmp:
         work = Path(tmp)
+
+        # An EPUB zipped together with its folder has no OCF root: calibre invents
+        # metadata from the filename and readers cannot open it. Repaired before
+        # anything reads it, so metadata and the published bytes both come from
+        # the valid layout.
+        readable, repaired = source, False
+        if identity.kind is Kind.EPUB and convert.nested_epub_root(source):
+            readable = convert.flatten_nested_epub(source, work / "repaired" / source.name)
+            repaired = True
+
         try:
-            payload, transformed = _prepare(source, identity, meta, config, work)
+            meta = extract(readable, identity)
+        except MetadataError as err:
+            return _quarantine(source, source_hash, f"metadata-error-{err}", config, ledger)
+
+        if not meta.is_usable:
+            # Never guessed at. A wrong series assignment silently merges two series
+            # in Kavita and leaves no signal that it happened.
+            return _quarantine(source, source_hash, "no-usable-metadata", config, ledger)
+
+        try:
+            payload, transformed = _prepare(readable, identity, meta, config, work)
         except (convert.ConversionError, spreads.SpreadsUnavailable) as err:
             return _quarantine(source, source_hash, f"conversion-failed-{err}", config, ledger)
+        transformed = transformed or repaired
 
         try:
             dest = target_path(config.library, meta, published_suffix(identity, source))
@@ -235,7 +246,8 @@ def prune_inbox(config: ShelfConfig) -> None:
     """
     if not config.inbox.is_dir():
         return
-    for path in sorted((p for p in config.inbox.rglob("*") if p.is_dir()), reverse=True):
+    dirs = (p for p in config.inbox.rglob("*") if p.is_dir() and not _hidden(p, config.inbox))
+    for path in sorted(dirs, reverse=True):
         try:
             if not any(path.iterdir()):
                 path.rmdir()
@@ -273,12 +285,18 @@ def retry_quarantine(config: ShelfConfig, ledger: Ledger) -> int:
     return returned
 
 
+def _hidden(path: Path, root: Path) -> bool:
+    """Any dot-component below the inbox: Syncthing's .stfolder/, .stignore and
+    .syncthing.*.tmp transfers when the phone feeds ~/inbox/phone."""
+    return any(part.startswith(".") for part in path.relative_to(root).parts)
+
+
 def inbox_files(config: ShelfConfig) -> list[Path]:
     if not config.inbox.is_dir():
         return []
     return [
         p for p in sorted(config.inbox.rglob("*"))
-        if p.is_file() and not p.name.startswith(".")
+        if p.is_file() and not _hidden(p, config.inbox)
     ]
 
 

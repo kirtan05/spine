@@ -1,0 +1,52 @@
+[
+  {"author": "Will Wight", "series": "Cradle", "titles": {
+    "Unsouled": 1, "Soulsmith": 2, "Blackflame": 3, "Skysworn": 4, "Ghostwater": 5, "Underlord": 6,
+    "Uncrowned": 7, "Wintersteel": 8, "Bloodline": 9, "Reaper": 10, "Dreadgod": 11, "Waybound": 12}},
+  {"author": "John Bierce", "series": "Mage Errant", "titles": {
+    "Into the Labyrinth": 1, "Jewel of the Endless Erg": 2, "A Traitor in Skyhold": 3,
+    "The Lost City of Ithos": 4, "The Siege of Skyhold": 5, "Tongue Eater": 6,
+    "The Last Echo of the Lord of Bells": 7}},
+  {"author": "Jim Butcher", "series": "Codex Alera", "titles": {
+    "Furies of Calderon": 1, "Academ's Fury": 2, "Cursor's Fury": 3, "Captain's Fury": 4,
+    "Princeps' Fury": 5, "First Lord's Fury": 6}},
+  {"author": "Jeffrey Archer", "series": "The Clifton Chronicles", "titles": {
+    "Only Time Will Tell": 1, "The Sins of the Father": 2, "Best Kept Secret": 3,
+    "Be Careful What You Wish For": 4, "Mightier than the Sword": 5, "Cometh the Hour": 6}},
+  {"author": "Steve Cavanagh", "series": "Eddie Flynn", "titles": {
+    "The Defence": 1, "The Plea": 2, "The Liar": 3, "Thirteen": 4, "The Devil's Advocate": 6,
+    "The Accomplice": 7}},
+  {"author": "Stella Rimington", "series": "Liz Carlyle", "titles": {
+    "At Risk": 1, "Secret Asset": 2, "Illegal Action": 3, "Dead Line": 4, "Present Danger": 5,
+    "Rip Tide": 6, "The Geneva Trap": 7, "Close Call": 8, "Breaking Cover": 9,
+    "The Moscow Sleepers": 10}},
+  {"author": "Brandon Sanderson", "series": "The Stormlight Archive", "titles": {
+    "The Way of Kings": 1, "Words of Radiance": 2, "Oathbringer": 3}},
+  {"author": "Ursula K. Le Guin", "series": "Earthsea", "titles": {
+    "A Wizard of Earthsea": 1, "The Tombs of Atuan": 2, "The Farthest Shore": 3}},
+  {"author": "Elle Kennedy", "series": "Off-Campus", "titles": {
+    "The Deal": 1, "The Mistake": 2, "The Score": 3, "The Legacy": 5}},
+  {"author": "Scott Lynch", "series": "Gentleman Bastard", "titles": {
+    "The Lies of Locke Lamora": 1, "Red Seas Under Red Skies": 2, "The Republic of Thieves": 3}},
+  {"author": "Joe Abercrombie", "series": "The Age of Madness", "titles": {
+    "A Little Hatred": 1, "The Trouble with Peace": 2, "The Wisdom of Crowds": 3}},
+  {"author": "Jack Carr", "series": "Terminal List", "titles": {
+    "The Terminal List": 1, "True Believer": 2, "Savage Son": 3}},
+  {"author": "Mark Greaney", "series": "Gray Man", "titles": {
+    "Relentless": 10, "Sierra Six": 11, "Burner": 12, "The Chaos Agent": 13}},
+  {"author": "James Islington", "series": "Hierarchy", "titles": {
+    "The Will of the Many": 1, "The Strength of the Few": 2}},
+  {"author": "L. L. Stephens", "series": "The Triempery Revelations", "titles": {
+    "Sordaneon": 1, "The Kheld King": 2, "The Second Stone": 3, "The God Spear": 4, "The Rill Lord": 6}},
+  {"author": "Kevin Missal", "series": "Sinbad", "titles": {
+    "Sinbad and the Trumpet of Israfil": 1, "Sinbad and the Tomb of Alexander": 2,
+    "Sinbad and the Rise of Iblis": 3}},
+  {"author": "N. K. Jemisin", "series": "The Broken Earth", "titles": {"The Fifth Season": 1}},
+  {"author": "George R. R. Martin", "series": "A Song of Ice and Fire", "titles": {"A Clash of Kings": 2}},
+  {"author": "George R. R. Martin", "series": "Tales of Dunk and Egg", "titles": {"The Hedge Knight": 1}},
+  {"author": "Lee Child", "series": "Jack Reacher", "titles": {"In Too Deep": 29}},
+  {"author": "Lars Kepler", "series": "Joona Linna", "titles": {"The Hypnotist": 1}},
+  {"author": "Sophie Hannah", "series": "New Hercule Poirot Mysteries", "titles": {"Hercule Poirot's Silent Night": 5}},
+  {"author": "Rick Riordan", "series": "Percy Jackson and the Olympians", "titles": {"The Chalice of the Gods": 6}},
+  {"author": "Suzanne Collins", "series": "The Hunger Games", "titles": {"Sunrise on the Reaping": 5}},
+  {"author": "Jennifer Lynn Barnes", "series": "The Inheritance Games", "titles": {"The Brothers Hawthorne": 4}}
+]

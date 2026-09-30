@@ -1,0 +1,19 @@
+{
+  "_note": "Exact author strings (as ebook-meta reports them, after clean_authors) mapped to one canonical spelling. Readest groups by the embedded author string, so every variant here would otherwise be a separate shelf.",
+  "aliases": {
+    "Carr, Jack": "Jack Carr",
+    "Butcher, Jim": "Jim Butcher",
+    "Wight, Will": "Will Wight",
+    "Archer, Jeffrey": "Jeffrey Archer",
+    "Cavanagh, Steve": "Steve Cavanagh",
+    "Rimington, Stella": "Stella Rimington",
+    "Lynch, Scott": "Scott Lynch",
+    "McClellan, Brian": "Brian McClellan",
+    "Jordan, Robert": "Robert Jordan",
+    "Bierce, John": "John Bierce",
+    "George R.R. Martin": "George R. R. Martin",
+    "Le Guin, Ursula K.": "Ursula K. Le Guin",
+    "Ursula K Le Guin": "Ursula K. Le Guin",
+    "Sanghi Ashwin": "Ashwin Sanghi"
+  }
+}

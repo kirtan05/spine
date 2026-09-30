@@ -142,3 +142,57 @@ def copy_into(source: Path, dest: Path) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, dest)
     return dest
+
+
+# --------------------------------------------------------------------------- #
+# EPUBs zipped together with their folder
+# --------------------------------------------------------------------------- #
+
+_CONTAINER = "META-INF/container.xml"
+
+
+def nested_epub_root(path: Path) -> str | None:
+    """The wrapper folder (``"name/"``) of an EPUB zipped along with its folder.
+
+    OCF requires ``META-INF/container.xml`` at the archive root. An EPUB that was
+    zipped as a folder has it one level down instead: calibre then cannot find the
+    OPF and invents metadata from the filename, and readers cannot open it at all.
+    None for a normal EPUB, and for anything more ambiguous than one wrapper.
+    """
+    with zipfile.ZipFile(path) as archive:
+        names = archive.namelist()
+    if _CONTAINER in names:
+        return None
+    roots = {name.split("/", 1)[0] for name in names if "/" in name}
+    wrappers = [root for root in roots if f"{root}/{_CONTAINER}" in names]
+    if len(wrappers) != 1:
+        return None
+    prefix = f"{wrappers[0]}/"
+    return prefix if all(name.startswith(prefix) for name in names) else None
+
+
+def flatten_nested_epub(source: Path, dest: Path) -> Path:
+    """Repack without the wrapper folder, as a valid and deterministic EPUB.
+
+    ``mimetype`` goes first and stored, as OCF requires; everything else follows
+    in sorted order at the pinned timestamp, for the same reason comics are packed
+    that way — the output's partial MD5 is the book's identity, so the same input
+    must always produce the same bytes.
+    """
+    prefix = nested_epub_root(source)
+    if prefix is None:
+        raise ConversionError(f"not a nested EPUB: {source.name}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(source) as src, zipfile.ZipFile(dest, "w") as out:
+        names = sorted(
+            name[len(prefix):] for name in src.namelist()
+            if not name.endswith("/") and len(name) > len(prefix)
+        )
+        if "mimetype" in names:
+            names = ["mimetype"] + [n for n in names if n != "mimetype"]
+        for name in names:
+            info = _entry(name)
+            if name != "mimetype":
+                info.compress_type = zipfile.ZIP_DEFLATED
+            out.writestr(info, src.read(prefix + name))
+    return dest

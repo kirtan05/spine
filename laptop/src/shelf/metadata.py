@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass, replace
@@ -59,7 +60,22 @@ def epub_metadata(path: Path) -> BookMeta:
     Read-only: the EPUB is never rewritten. Rewriting would change the partial
     MD5 for no benefit — Kavita reads the OPF directly, and the catalogue in D1
     carries everything else.
+
+    ebook-meta chooses its reader from the extension, not the contents. Google's
+    Takeout names most EPUBs ``.pdf``; read under that name, the PDF reader fails
+    and calibre falls back to the filename as the title and "Unknown" as the
+    author. So anything not already called ``.epub`` is read through a
+    ``.epub``-named symlink instead.
     """
+    if path.suffix.lower() == ".epub":
+        return _run_ebook_meta(path)
+    with tempfile.TemporaryDirectory(prefix="shelf-meta-") as tmp:
+        alias = Path(tmp) / "book.epub"
+        alias.symlink_to(path.resolve())
+        return _run_ebook_meta(alias)
+
+
+def _run_ebook_meta(path: Path) -> BookMeta:
     try:
         proc = run_tool(["ebook-meta", str(path)], timeout=120)
     except (OSError, subprocess.TimeoutExpired) as err:
@@ -118,16 +134,34 @@ def _normalise_author(part: str) -> str:
     return name
 
 
+#: Several authors under one bracket: ``Lee Child & Andrew Child [Child, Lee & Child, Andrew]``.
+_COMBINED_SORT = re.compile(r"^(?P<names>[^\[\]]*&[^\[\]]*?)\s*\[(?P<sorts>[^\]]*)\]\s*$")
+_STRAY_PUNCTUATION = ";,"
+
+
 def clean_authors(value: str | None) -> str | None:
     """Normalise calibre's author string, or None if it says nothing."""
     if not value:
         return None
-    names = []
-    for part in re.split(r"\s*&\s*", value):
-        name = _normalise_author(part)
-        if name and name.lower() != "unknown":
-            names.append(name)
-    return " & ".join(names) or None
+    parts = re.split(r"\s*&\s*", value.strip())
+
+    combined = _COMBINED_SORT.match(value.strip())
+    if combined:
+        # Pair each name with its own sort form so the per-author rules apply —
+        # including the sort-order flip, which only the pairing can detect.
+        names = re.split(r"\s*&\s*", combined.group("names").strip())
+        sorts = re.split(r"\s*&\s*", combined.group("sorts").strip())
+        if len(names) == len(sorts):
+            parts = [f"{name} [{sort}]" for name, sort in zip(names, sorts, strict=True)]
+        else:
+            parts = names
+
+    cleaned: list[str] = []
+    for part in parts:
+        name = _normalise_author(part).strip().strip(_STRAY_PUNCTUATION).strip()
+        if name and name.lower() != "unknown" and name not in cleaned:
+            cleaned.append(name)
+    return " & ".join(cleaned) or None
 
 
 def embed_epub_metadata(path: Path, meta: BookMeta) -> None:

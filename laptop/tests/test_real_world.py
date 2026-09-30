@@ -6,13 +6,20 @@ nothing quarantined — and were only visible in the resulting paths.
 
 from __future__ import annotations
 
+import shutil
+import zipfile
 from pathlib import Path
 
+import pytest
 from conftest import make_cbz, make_epub
 
+from shelf.convert import flatten_nested_epub, nested_epub_root
 from shelf.identify import Kind, identify, published_suffix
-from shelf.metadata import BookMeta, clean_authors
+from shelf.ledger import Ledger
+from shelf.metadata import BookMeta, clean_authors, epub_metadata
 from shelf.naming import primary_author, target_path
+from shelf.pipeline import ingest_file
+from spinecore.config import shelf_config
 
 LIBRARY = Path("/library")
 
@@ -153,3 +160,100 @@ class TestRealComicFilenames:
     def test_a_real_title_is_still_kept(self):
         meta = BookMeta(title="The One With The Rocket", series="Saga", series_index=12)
         assert target_path(LIBRARY, meta, ".cbz").name == "Saga 12 - The One With The Rocket.cbz"
+
+
+FIXTURE = Path(__file__).parent / "fixtures" / "koreader-verified.epub"
+needs_calibre = pytest.mark.skipif(shutil.which("ebook-meta") is None, reason="needs calibre")
+
+
+@needs_calibre
+class TestPdfNamedEpubMetadata:
+    """ebook-meta picks its reader from the file extension, not the contents.
+
+    Handed an EPUB named .pdf it runs the PDF reader, fails, and falls back to the
+    filename as the title and "Unknown" as the author. In the real export that sent
+    67 books to Unknown Author under titles like "Be Careful What You Wish For  The
+    Clifton Chronicles 4" — the filename, underscore and all.
+    """
+
+    def test_reads_the_books_own_metadata_despite_the_pdf_name(self, tmp_path):
+        as_pdf = tmp_path / "Oathbringer.pdf"
+        shutil.copy2(FIXTURE, as_pdf)
+
+        got = epub_metadata(as_pdf)
+        assert got == epub_metadata(FIXTURE)
+        assert got.authors == "spine"
+        assert got.title != "Oathbringer"
+
+    def test_never_touches_the_source_file(self, tmp_path):
+        as_pdf = tmp_path / "book.pdf"
+        shutil.copy2(FIXTURE, as_pdf)
+        before = as_pdf.read_bytes()
+        epub_metadata(as_pdf)
+        assert as_pdf.read_bytes() == before
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["book.pdf"]
+
+
+class TestCombinedSortForm:
+    """calibre prints several authors with one bracket for all of them."""
+
+    def test_strips_a_single_bracket_covering_every_author(self):
+        got = clean_authors("Lee Child & Andrew Child [Child, Lee & Child, Andrew]")
+        assert got == "Lee Child & Andrew Child"
+
+    def test_strips_it_for_two_unrelated_authors(self):
+        got = clean_authors("Girish Kuber & Vikrant Pande [Kuber, Girish & Pande, Vikrant]")
+        assert got == "Girish Kuber & Vikrant Pande"
+
+    def test_collapses_an_author_listed_twice(self):
+        assert clean_authors("Jim Butcher & Jim Butcher") == "Jim Butcher"
+
+    def test_drops_stray_trailing_punctuation(self):
+        assert clean_authors("Mark Greaney;") == "Mark Greaney"
+
+
+def make_nested_epub(path: Path, wrapper: str = "The Book by Someone (z-lib.org)") -> Path:
+    """The real-world shape: a complete EPUB zipped together with its folder."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(FIXTURE) as src, zipfile.ZipFile(path, "w") as out:
+        out.writestr(f"{wrapper}/", b"")
+        for name in src.namelist():
+            out.writestr(f"{wrapper}/{name}", src.read(name))
+    return path
+
+
+class TestNestedEpub:
+    """One book in the real library had every entry under a wrapper folder, so
+    there was no META-INF/container.xml at the root. calibre could not find the
+    OPF and invented metadata from the filename; readers cannot open it at all."""
+
+    def test_detects_the_wrapper_folder(self, tmp_path):
+        nested = make_nested_epub(tmp_path / "book.epub")
+        assert nested_epub_root(nested) == "The Book by Someone (z-lib.org)/"
+        assert nested_epub_root(FIXTURE) is None
+
+    def test_flattening_produces_a_valid_ocf_layout(self, tmp_path):
+        flat = flatten_nested_epub(make_nested_epub(tmp_path / "in.epub"), tmp_path / "out.epub")
+        with zipfile.ZipFile(flat) as archive:
+            infos = archive.infolist()
+            names = [i.filename for i in infos]
+        assert names[0] == "mimetype"
+        assert infos[0].compress_type == zipfile.ZIP_STORED
+        assert "META-INF/container.xml" in names
+        assert not any(name.startswith("The Book") for name in names)
+
+    def test_flattening_is_byte_for_byte_deterministic(self, tmp_path):
+        nested = make_nested_epub(tmp_path / "in.epub")
+        first = flatten_nested_epub(nested, tmp_path / "a.epub").read_bytes()
+        second = flatten_nested_epub(nested, tmp_path / "b.epub").read_bytes()
+        assert first == second
+
+    @needs_calibre
+    def test_ingest_repairs_it_and_reads_the_real_metadata(self, workspace):
+        config = shelf_config()
+        make_nested_epub(config.inbox / "The Wisdom of Crowds.epub")
+        with Ledger(config.ledger) as ledger:
+            outcome = ingest_file(config.inbox / "The Wisdom of Crowds.epub", config, ledger)
+        assert outcome.dest is not None
+        assert nested_epub_root(outcome.dest) is None
+        assert epub_metadata(outcome.dest).authors == "spine"

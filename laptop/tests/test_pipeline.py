@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import zipfile
+from pathlib import Path
 
 import pytest
-from conftest import make_cbz
+from conftest import make_cbz, make_epub
 
 from shelf.convert import build_cbz, comic_info_xml
 from shelf.ledger import Ledger
 from shelf.metadata import BookMeta
-from shelf.pipeline import Action, inbox_files, ingest_file, ingest_paths
+from shelf.pipeline import Action, inbox_files, ingest_file, ingest_paths, prune_inbox
 from spinecore.config import shelf_config
 from spinecore.partial_md5 import content_sha256, partial_md5
 
@@ -168,3 +169,32 @@ class TestCatalogue:
         assert entry is not None
         assert entry.metadata_source == "comicinfo"
         assert entry.doc_hash == outcome.doc_hash
+
+
+class TestSyncthingFedInbox:
+    """The phone's downloads arrive through Syncthing into ~/inbox/phone, which
+    carries Syncthing's own bookkeeping: `.stfolder/` with a marker file inside,
+    `.stignore`, and `.syncthing.*.tmp` while a transfer is in flight."""
+
+    def _syncthing_folder(self, inbox: Path) -> Path:
+        phone = inbox / "phone"
+        (phone / ".stfolder").mkdir(parents=True)
+        (phone / ".stfolder" / "syncthing-folder-abc123.txt").write_text("marker")
+        (phone / ".stignore").write_text("*\n")
+        (phone / ".syncthing.Book.epub.tmp").write_bytes(b"partial")
+        return phone
+
+    def test_ignores_everything_inside_a_hidden_directory(self, workspace):
+        config = shelf_config()
+        phone = self._syncthing_folder(config.inbox)
+        book = make_epub(phone / "Book.epub")
+        assert inbox_files(config) == [book]
+
+    def test_pruning_never_removes_the_syncthing_folder(self, workspace):
+        # Even empty: without .stfolder Syncthing stops the folder outright
+        # ("folder marker missing") rather than syncing into a bare directory.
+        config = shelf_config()
+        phone = self._syncthing_folder(config.inbox)
+        (phone / ".stfolder" / "syncthing-folder-abc123.txt").unlink()
+        prune_inbox(config)
+        assert (phone / ".stfolder").is_dir()
