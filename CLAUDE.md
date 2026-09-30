@@ -13,7 +13,7 @@ counter-intuitive.
 ### Worker (`worker/`)
 
 ```fish
-npm test                              # 57 tests against real D1 in workerd
+npm test                              # 61 tests against real D1 in workerd
 npx vitest run test/sync.test.ts      # one file
 npx vitest run -t "clamps a percentage"   # one test by name
 npm run typecheck                     # regenerates types, then tsc --noEmit
@@ -152,6 +152,10 @@ checkpoint — a successful-looking import quietly missing the newest reading.
   policy switchable after the fact and keeps ping-pong debuggable.
 - Finished detection runs on **push**, not in the rollup — a crossing that reverses
   before the nightly cron would never be seen by a daily snapshot.
+- A finish that reverses within `SPURIOUS_FINISH_SECONDS` (300) to below
+  `SPURIOUS_FINISH_BELOW` (0.5) is undone: Readest pushes 100% while a book is
+  first laid out (`(page + 1) / totalPages` with totalPages briefly 1).
+  `prior_finished_at` lets the undo restore an earlier genuine finish.
 - Tests truncate every table in `test/setup.ts` `beforeEach`. vitest-pool-workers
   v0.18 dropped automatic per-test storage isolation; without this, rows leak
   between tests.

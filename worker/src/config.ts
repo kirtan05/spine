@@ -17,6 +17,10 @@ export interface Config {
   finishedThreshold: number;
   /** How far back the public route exposes finished books. */
   recentWindowDays: number;
+  /** A finish undone this soon afterwards was never a finish (seconds). */
+  spuriousFinishSeconds: number;
+  /** ...provided the percentage fell below this, not just back a page or two. */
+  spuriousFinishBelow: number;
 }
 
 function asBool(value: unknown, fallback: boolean): boolean {
@@ -46,5 +50,7 @@ export function readConfig(env: Env): Config {
     allowRegistration: asBool(env.ALLOW_REGISTRATION, false),
     finishedThreshold: asNumber(env.FINISHED_THRESHOLD, 0.98),
     recentWindowDays: asNumber(env.RECENT_WINDOW_DAYS, 90),
+    spuriousFinishSeconds: asNumber(env.SPURIOUS_FINISH_SECONDS, 300),
+    spuriousFinishBelow: asNumber(env.SPURIOUS_FINISH_BELOW, 0.5),
   };
 }

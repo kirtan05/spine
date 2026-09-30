@@ -89,6 +89,22 @@ describe("finished detection", () => {
   const pushPercent = (percentage: number, progress = "1") =>
     push({ document: DOC, progress, percentage, device: "Pixel", device_id: "pixel-1" });
 
+  const status = () =>
+    env.DB.prepare(
+      "SELECT finished_at, last_finished_at, finish_count FROM book_status WHERE doc_hash = ?1",
+    )
+      .bind(DOC)
+      .first<{ finished_at: number | null; last_finished_at: number | null; finish_count: number }>();
+
+  /** Move the recorded finish into the past, as if `seconds` had elapsed since. */
+  const ageFinish = (seconds: number) =>
+    env.DB.prepare(
+      `UPDATE book_status SET finished_at = finished_at - ?2,
+                              last_finished_at = last_finished_at - ?2 WHERE doc_hash = ?1`,
+    )
+      .bind(DOC, seconds)
+      .run();
+
   it("marks a book finished when the resolved percentage crosses the threshold", async () => {
     await pushPercent(0.5);
     await pushPercent(0.99);
@@ -112,6 +128,7 @@ describe("finished detection", () => {
       .bind(DOC)
       .first<{ finished_at: number }>();
 
+    await ageFinish(3600); // a re-read starts later, not seconds after finishing
     await pushPercent(0.02); // started it again
     await pushPercent(0.99); // and finished it again
 
@@ -121,8 +138,53 @@ describe("finished detection", () => {
       .bind(DOC)
       .first<{ finished_at: number; finish_count: number }>();
     expect(row!.finish_count).toBe(2);
-    expect(row!.finished_at).toBe(first!.finished_at);
+    expect(row!.finished_at).toBe(first!.finished_at - 3600); // aged, never moved
     expect((await readBody()).recently_finished[0]!.times_read).toBe(2);
+  });
+
+  it("does not count a finish that reverses within minutes (Readest's first-open 100%)", async () => {
+    // Readest computes (page + 1) / totalPages; while a book is first laid out
+    // totalPages is briefly 1, so the first push claims 100%. Seen for real:
+    // "finished" at 01:14:07, back at 14% by 01:15:24.
+    await pushPercent(1);
+    await pushPercent(0.14);
+
+    const row = await status();
+    expect(row!.finish_count).toBe(0);
+    expect(row!.finished_at).toBeNull();
+    expect(row!.last_finished_at).toBeNull();
+    const body = await readBody();
+    expect(body.recently_finished).toEqual([]);
+    expect(body.currently_reading).toHaveLength(1);
+  });
+
+  it("a glance back after finishing does not undo the finish", async () => {
+    await pushPercent(0.5);
+    await pushPercent(0.99);
+    await pushPercent(0.95); // flipped back a page or two
+
+    expect((await status())!.finish_count).toBe(1);
+  });
+
+  it("a finish that stands for longer than the window is kept", async () => {
+    await pushPercent(0.99);
+    await ageFinish(3600);
+    await pushPercent(0.02); // a genuine re-read, an hour later
+
+    expect((await status())!.finish_count).toBe(1);
+  });
+
+  it("reverting a glitch restores the previous genuine finish", async () => {
+    await pushPercent(0.99);
+    const genuine = (await status())!.last_finished_at;
+    await ageFinish(86_400);
+    await pushPercent(0.02); // re-reading, a day later
+    await pushPercent(1); // the glitch
+    await pushPercent(0.03); // seconds later, the real position
+
+    const row = await status();
+    expect(row!.finish_count).toBe(1);
+    expect(row!.last_finished_at).toBe(genuine! - 86_400);
   });
 
   it("does not re-count a book that stays above the threshold", async () => {

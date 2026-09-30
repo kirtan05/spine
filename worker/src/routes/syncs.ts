@@ -72,7 +72,7 @@ export async function putProgress(request: Request, env: Env, config: Config): P
   const rows = results[results.length - 1]?.results ?? [];
   const winner = resolve(rows, config.conflictPolicy);
   if (winner) {
-    await recordBookStatus(env.DB, winner, config.finishedThreshold);
+    await recordBookStatus(env.DB, winner, config);
   }
 
   return json({ document, timestamp: now }, 200);
@@ -117,11 +117,21 @@ export async function getProgress(
  * before the cron runs — end matter, a re-read started the same evening — would
  * never be observed by a once-a-day snapshot of the current percentage.
  *
+ * A crossing that reverses *within minutes* to well below the threshold is undone
+ * instead: that is not a reader, it is Readest computing (page + 1) / totalPages
+ * while a book is first laid out and totalPages is still 1. Seen for real — a
+ * book "finished" at 01:14:07 was at 14% by 01:15:24. The floor keeps a glance
+ * back after a genuine finish (a comic flipped back a page) from undoing it, and
+ * prior_finished_at lets the undo restore an earlier genuine finish.
+ *
  * Expressed as a single upsert so the previous percentage is read and compared
  * inside SQLite, without a separate read round trip.
  */
-function recordBookStatus(db: D1Database, winner: ProgressRow, threshold: number): Promise<unknown> {
+function recordBookStatus(db: D1Database, winner: ProgressRow, config: Config): Promise<unknown> {
   const crossed = `book_status.percentage < ?4 AND excluded.percentage >= ?4`;
+  const reverted = `book_status.percentage >= ?4 AND excluded.percentage < ?7
+                    AND book_status.last_finished_at IS NOT NULL
+                    AND excluded.updated_at - book_status.last_finished_at <= ?6`;
   return db
     .prepare(
       `INSERT INTO book_status (doc_hash, percentage, device, updated_at, finished_at, last_finished_at, finish_count)
@@ -130,15 +140,22 @@ function recordBookStatus(db: D1Database, winner: ProgressRow, threshold: number
                CASE WHEN ?2 >= ?4 THEN ?5 END,
                CASE WHEN ?2 >= ?4 THEN 1 ELSE 0 END)
        ON CONFLICT(doc_hash) DO UPDATE SET
-         percentage       = excluded.percentage,
-         device           = excluded.device,
-         updated_at       = excluded.updated_at,
-         finished_at      = COALESCE(book_status.finished_at,
-                              CASE WHEN ${crossed} THEN excluded.updated_at END),
-         last_finished_at = CASE WHEN ${crossed} THEN excluded.updated_at
-                                 ELSE book_status.last_finished_at END,
-         finish_count     = book_status.finish_count + CASE WHEN ${crossed} THEN 1 ELSE 0 END`,
+         percentage        = excluded.percentage,
+         device            = excluded.device,
+         updated_at        = excluded.updated_at,
+         finished_at       = CASE WHEN ${reverted} AND book_status.finish_count <= 1 THEN NULL
+                                  ELSE COALESCE(book_status.finished_at,
+                                         CASE WHEN ${crossed} THEN excluded.updated_at END) END,
+         last_finished_at  = CASE WHEN ${crossed} THEN excluded.updated_at
+                                  WHEN ${reverted} THEN book_status.prior_finished_at
+                                  ELSE book_status.last_finished_at END,
+         prior_finished_at = CASE WHEN ${crossed} THEN book_status.last_finished_at
+                                  WHEN ${reverted} THEN NULL
+                                  ELSE book_status.prior_finished_at END,
+         finish_count      = book_status.finish_count
+                             + CASE WHEN ${crossed} THEN 1 WHEN ${reverted} THEN -1 ELSE 0 END`,
     )
-    .bind(winner.doc_hash, winner.percentage, winner.device, threshold, winner.updated_at)
+    .bind(winner.doc_hash, winner.percentage, winner.device, config.finishedThreshold,
+          winner.updated_at, config.spuriousFinishSeconds, config.spuriousFinishBelow)
     .run();
 }

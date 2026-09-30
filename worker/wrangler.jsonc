@@ -41,7 +41,11 @@
     // Re-open registration after the first account. Normally left off.
     "ALLOW_REGISTRATION": "false",
     // How far back /api/reading exposes finished books.
-    "RECENT_WINDOW_DAYS": "90"
+    "RECENT_WINDOW_DAYS": "90",
+    // A finish reversed within this many seconds, to below SPURIOUS_FINISH_BELOW,
+    // is undone. Readest pushes 100% while a book is first laid out.
+    "SPURIOUS_FINISH_SECONDS": "300",
+    "SPURIOUS_FINISH_BELOW": "0.5"
   },
 
   "observability": {
